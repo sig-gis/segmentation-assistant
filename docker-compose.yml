@@ -1,0 +1,121 @@
+# Needs HF_TOKEN and a GPU for the api (see README.md). The map UI (web) is
+# on http://localhost:8081.
+
+services:
+  storage:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-segsvc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-segmentation}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-segsvc} -d ${POSTGRES_DB:-segmentation}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set in .env}
+      HF_TOKEN: ${HF_TOKEN:-}
+      SETTINGS_PATH: /config/settings.yaml
+      DATA_DIR: /data
+    volumes:
+      - ./config:/config:ro
+      - ${DATA_DIR:-./data}:/data
+      # downloaded model weights, kept across container rebuilds
+      - hfcache:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      storage:
+        condition: service_healthy
+    # /healthz reports "loading" until SAM-3 weights are on the GPU; give the
+    # cold start room before Docker declares the container unhealthy.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz | grep -q ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Web UI for browsing the database. Opt-in, so it never starts by default:
+  #   docker compose --profile tools up -d adminer   →   http://localhost:8080
+  # Log in with System=PostgreSQL, Server=storage, and the POSTGRES_* values
+  # from .env. For looking at *geometry* rather than rows, use QGIS instead —
+  # see README ("Inspecting the data").
+  adminer:
+    image: adminer
+    profiles: [tools]
+    environment:
+      ADMINER_DEFAULT_SERVER: storage
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      storage:
+        condition: service_healthy
+
+  # Map UI (React + OpenLayers) on http://localhost:8081. nginx serves the
+  # built app and forwards /api to the api service. It starts as soon as the
+  # api container is up; model actions wait for /healthz to report ready.
+  web:
+    build:
+      context: services/web
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      - api
+
+  # Not started by default: training jobs are triggered explicitly
+  # (`docker compose --profile finetune run finetune <subcommand>`),
+  # never on plain `docker compose up`.
+  finetune:
+    profiles: [finetune]
+    build:
+      context: .
+      dockerfile: services/finetune/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set in .env}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_ADAPTER_REPO: ${HF_ADAPTER_REPO:-}
+      SETTINGS_PATH: /config/settings.yaml
+      DATA_DIR: /data
+      SLURM_SSH_HOST: ${SLURM_SSH_HOST:-}
+      SLURM_REMOTE_ROOT: ${SLURM_REMOTE_ROOT:-}
+      SLURM_REMOTE_PYTHON: ${SLURM_REMOTE_PYTHON:-}
+      SLURM_PARTITION: ${SLURM_PARTITION:-}
+      SLURM_ACCOUNT: ${SLURM_ACCOUNT:-}
+      SLURM_QOS: ${SLURM_QOS:-}
+    volumes:
+      - ./config:/config:ro
+      - ${DATA_DIR:-./data}:/data
+      # downloaded model weights, kept across container rebuilds
+      - hfcache:/root/.cache/huggingface
+    depends_on:
+      storage:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  pgdata:
+  hfcache:

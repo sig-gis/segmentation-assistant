@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime data (mounted into containers; never committed)
+data/
+!data/.gitkeep
+
+# Training outputs
+runs/
+sam3_logs/
+tensorboard/
+
+# Vendored sam3 keeps its own junk out via its checkout; ignore its build residue
+vendor/sam3/build/
+vendor/sam3/**/*.egg-info/
+
+# Local database dumps
+backups/
+
+docs/
+CLAUDE.md

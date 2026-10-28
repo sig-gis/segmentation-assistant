@@ -1,0 +1,35 @@
+# Non-secret tunables. Secrets (tokens, connection strings) live in .env —
+# this split mirrors the settings-vs-config convention used elsewhere in the
+# org, without any GCS specifics.
+
+model:
+  # Only "samgeo" is implemented. The Backend interface exists so sam2 /
+  # grounding-dino could be added later; do not add stub entries here.
+  backend: samgeo
+  # Passed to samgeo SamGeo3(backend=...): "meta" or "transformers".
+  # "meta" supports both facebook/sam3 and facebook/sam3.1.
+  samgeo_backend: meta
+  model_id: facebook/sam3
+  # Optional fine-tuned adapter to load on top of the base checkpoint.
+  # Set to an HF Hub ref recorded in training_runs.hf_checkpoint_ref
+  # (e.g. "your-org/sam3-rs-lora@run-<uuid>"). Checkpoint selection is a
+  # config value, not a code change.
+  adapter_ref: null
+
+tiling:
+  tile_size: 1024
+  overlap: 128
+  min_size: 0        # drop masks smaller than this (pixels); samgeo passthrough
+  max_size: null
+
+interactive:
+  multimask_output: true
+
+concept:
+  # /segment/concept: lowest match score kept, unless a request sets its own.
+  # SAM-3's built-in 0.5 hides most matches for an exemplar on satellite images.
+  min_score: 0.3
+
+# Fine-tune options (backend local/slurm, split fractions, LoRA r/alpha/dropout)
+# are seg-finetune CLI flags, not settings here. See "Fine-tuning" in the
+# README.
