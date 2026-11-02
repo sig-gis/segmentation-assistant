@@ -1,7 +1,3 @@
-# Non-secret tunables. Secrets (tokens, connection strings) live in .env —
-# this split mirrors the settings-vs-config convention used elsewhere in the
-# org, without any GCS specifics.
-
 model:
   # Only "samgeo" is implemented. The Backend interface exists so sam2 /
   # grounding-dino could be added later; do not add stub entries here.
@@ -17,8 +13,8 @@ model:
   adapter_ref: null
 
 tiling:
-  tile_size: 1024
-  overlap: 128
+  tile_size: 1008
+  overlap: 126
   min_size: 0        # drop masks smaller than this (pixels); samgeo passthrough
   max_size: null
 
