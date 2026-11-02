@@ -48,6 +48,9 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Built-in defaults, overridden by the YAML at SETTINGS_PATH
+        (default config/settings.yaml) if it exists. DATABASE_URL, DATA_DIR and
+        HF_TOKEN come from the environment only."""
         tunables = dict(DEFAULT_SETTINGS)
         settings_path = os.environ.get("SETTINGS_PATH", "config/settings.yaml")
         if Path(settings_path).exists():

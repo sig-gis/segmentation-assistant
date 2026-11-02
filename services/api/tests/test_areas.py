@@ -104,3 +104,17 @@ def test_unknown_image_404(client, missing_uuid):
         "/areas", json={"image_id": missing_uuid, "label": "field", "geometry": AREA}
     )
     assert response.status_code == 404
+
+
+def test_refused_action_keeps_edit_unsaved(client, png_image):
+    image_id = png_image["image_id"]
+    area = _area(client, image_id)
+    client.post(
+        "/segment/interactive",
+        json={"image_id": image_id, "points": [{"x": 5, "y": 5, "label": 1}],
+              "label": "field"},
+    )
+    edited = square_geometry(0, 0, 30)
+    refused = _act(client, area["area_id"], "submit", geometry=edited)
+    assert refused.status_code == 409
+    assert client.get(f"/areas/{area['area_id']}").json()["geometry"] == area["geometry"]

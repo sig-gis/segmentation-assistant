@@ -4,10 +4,13 @@ outlined, and the review that turns them into training data.
 Lifecycle: draft -> submitted -> approved, or -> returned (with a note) ->
 submitted again. Only approved areas are exported for training. An area can
 be edited only while draft or returned; reopen moves it back to draft.
+
+All routes: 404 for an unknown area or image, 422 for invalid geometry.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from datetime import datetime, timezone
 
@@ -93,10 +96,19 @@ async def get_area(area_id: uuid.UUID, request: Request) -> AreaResponse:
 async def update_area(
     area_id: uuid.UUID, body: AreaUpdateRequest, request: Request
 ) -> AreaResponse:
+    """Edit an area and/or move it through submit, approve, return or reopen.
+
+    Label and geometry can change only on draft or returned areas (409
+    otherwise). 409 on an invalid transition, or on submit while proposals inside
+    the edited area are unreviewed. Nothing is saved unless every check passes.
+    `note` is kept on return and cleared by other actions; without an action it
+    just sets the note."""
     repo = request.app.state.repo
     area = await _get_or_404(repo, area_id)
     fields: dict = {}
 
+    # Every check runs before anything is saved, so a refused request changes
+    # nothing. Checks after an edit see the edited area.
     if body.label is not None or body.geometry is not None:
         if area.status not in _EDITABLE:
             raise HTTPException(
@@ -107,9 +119,7 @@ async def update_area(
             fields["label"] = body.label
         if body.geometry is not None:
             fields["geometry"] = _polygon_or_422(body.geometry)
-        if fields:
-            area = await repo.update_area(area_id, fields)
-            fields = {}
+        area = dataclasses.replace(area, **fields)
 
     if body.action is not None:
         allowed_from, new_status = _TRANSITIONS[body.action]

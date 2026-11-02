@@ -1,3 +1,6 @@
+"""The Backend interface every model backend implements, plus the result
+types it returns."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

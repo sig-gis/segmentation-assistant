@@ -75,6 +75,11 @@ class LocalBackend(TrainingBackend):
         ]
 
     def submit(self, job_config: TrainingJobConfig) -> str:
+        """Start the trainer as a detached process and return the run_id.
+
+        Writes runs_dir/<run_id>/train.log, job.json (pid, command) and,
+        when the process ends, exit_code.
+        """
         job_dir = self._runs_dir / job_config.run_id
         job_dir.mkdir(parents=True, exist_ok=True)
         command = self.build_command(job_config)
@@ -116,6 +121,9 @@ class LocalBackend(TrainingBackend):
         return job_config.run_id
 
     def poll(self, job_id: str) -> JobStatus:
+        """Return a JobStatus for job_id: succeeded/failed from exit_code, else
+        running while the pid is alive, else failed. Metrics come from
+        TensorBoard, best-effort. Raises KeyError if job.json is missing."""
         job_dir = self._runs_dir / job_id
         meta_path = job_dir / "job.json"
         if not meta_path.is_file():
@@ -312,6 +320,14 @@ class SlurmBackend(TrainingBackend):
     # -- TrainingBackend ---------------------------------------------------
 
     def submit(self, job_config: TrainingJobConfig) -> str:
+        """Copy the dataset and config to the cluster, submit via ssh and
+        return the run_id.
+
+        Writes the dataset to <remote_root>/runs/<run_id>/dataset and the config
+        to <remote_root>/vendor/sam3/sam3/train/. Locally writes
+        runs_dir/<run_id>/remote_config.yaml, train.log (submit output) and
+        job.json (SLURM job id). Raises ValueError without dataset_dir,
+        ConnectionError if ssh fails, RuntimeError if rsync or submission fails."""
         if job_config.dataset_dir is None:
             raise ValueError("SlurmBackend needs job_config.dataset_dir to copy to the cluster")
         self.check_connection()
@@ -368,6 +384,12 @@ class SlurmBackend(TrainingBackend):
         return self._STATES.get(raw, "failed")
 
     def poll(self, job_id: str) -> JobStatus:
+        """Return a JobStatus from sacct/squeue: queued/running/succeeded/failed,
+        unknown if neither reports the job. Pulls TensorBoard events into
+        experiment_log_dir each call, and checkpoints once after success
+        (marked by runs_dir/<run_id>/checkpoints_synced). Copy errors are
+        ignored. Raises KeyError if job.json is missing, ConnectionError if ssh
+        fails."""
         job_dir = self._runs_dir / job_id
         meta_path = job_dir / "job.json"
         if not meta_path.is_file():

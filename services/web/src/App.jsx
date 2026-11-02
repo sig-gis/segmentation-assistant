@@ -1,3 +1,6 @@
+// Top-level app: image list, annotations and draft state, map tool modes
+// (1-5), side tabs, keyboard shortcuts, and panel settings kept in
+// localStorage (visibility, widths, folds, theme, sweep:<imageId>).
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api } from "./api.js";

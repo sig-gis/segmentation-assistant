@@ -96,6 +96,11 @@ class PostgresAnnotationSource(DatasetSource):
         self._dsn = dsn
 
     def fetch(self, project_ref: str | None = None) -> Iterable[SourceAnnotation]:
+        """Yield accepted annotations with a geometry, oldest first.
+
+        Geometry is in the image's CRS, or pixel space when crs is None. A
+        NULL split becomes 'unassigned'. project_ref is not used here.
+        """
         import json
 
         import psycopg
@@ -130,6 +135,8 @@ class PostgresAnnotationSource(DatasetSource):
                 )
 
     def write_splits(self, assignments: dict[uuid.UUID, str]) -> None:
+        """Save split assignments to annotations.split in one transaction. Does
+        nothing if assignments is empty."""
         import psycopg
 
         if not assignments:

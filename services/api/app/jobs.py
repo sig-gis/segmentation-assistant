@@ -43,6 +43,10 @@ def _read_geojson_features(path: str) -> list[dict]:
 
 
 class JobRunner:
+    """Runs background jobs as asyncio tasks. Model work holds the shared GPU
+    lock, so it never overlaps interactive calls. Job status moves from queued
+    to running, then succeeded or failed, and is saved in the jobs table."""
+
     def __init__(self, repo: Repository, backend: Backend, gpu_lock: asyncio.Lock, settings):
         self._repo = repo
         self._backend = backend
@@ -57,6 +61,13 @@ class JobRunner:
         task.add_done_callback(self._tasks.discard)
 
     async def _run_tiled(self, job_id: uuid.UUID) -> None:
+        """Run one tiled sweep and save its polygons as `proposed` annotations.
+
+        Files go to outputs/<job_id>/. On success the job is `succeeded` and its
+        result holds the file paths and `annotation_count`; if saving the polygons
+        fails, it still succeeds with `annotation_count` 0 and `ingest_error`. If
+        the image is gone or the sweep raises, the job is `failed` with `error`. If
+        the job row is gone, nothing runs."""
         job = await self._repo.get_job(job_id)
         if job is None:
             logger.error("job %s vanished before it could run", job_id)

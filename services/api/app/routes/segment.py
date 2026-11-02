@@ -17,6 +17,9 @@ full-scene sweep to an HTTP timeout.
 
 Every model proposal is persisted as an annotation (status='proposed') the
 moment it's produced — the annotations table is the future training set.
+
+All routes: 503 while the model is loading, 404 for an unknown image, 422
+if the model rejects the prompt.
 """
 
 from __future__ import annotations
@@ -115,6 +118,20 @@ def _feature(geometry: dict, image, score: float | None, **props) -> PolygonFeat
 async def segment_interactive(
     body: InteractiveSegmentRequest, request: Request
 ) -> InteractiveSegmentResponse:
+    """Segment one object from point clicks and/or a box.
+
+    Prompts may be pixel, lonlat (422 on an image with crs NULL) or the image's
+    own CRS. With a box, the model sees only a full-resolution cut-out around it
+    and the outline is clipped to the box (422 if the box is invalid or nothing
+    is inside it).
+
+    With `prior_annotation_id` (404 if missing, 422 if on another image), a new
+    row is added that refines the prior. The prior's saved mask guides the model
+    only if it was made on the same cut-out. A prior still 'proposed' is marked
+    rejected.
+
+    Saves the result as 'proposed' and returns its id and outline in the image
+    CRS, or in pixels when crs is NULL."""
     _require_loaded(request)
     state = request.app.state
     image = await _get_image_or_404(request, body.image_id)
@@ -305,6 +322,19 @@ async def _resolve_exemplars(request: Request, body: ConceptSegmentRequest, imag
 async def segment_concept(
     body: ConceptSegmentRequest, request: Request
 ) -> ConceptSegmentResponse:
+    """Find every instance matching a text prompt, exemplar boxes, or both.
+
+    With `region`, only a full-resolution crop of it is searched and results are
+    clipped to it (422 if the region is invalid). `min_score` falls back to
+    settings `concept.min_score`. With `skip_existing`, matches that overlap an
+    outline already on the image (IoU 0.5 or more, any status) are left out and
+    counted in `skipped_existing`.
+
+    Exemplar annotations must exist (404) and be on this image with a geometry
+    (422). The label is `text`, else the first positive exemplar annotation's
+    label, else 'exemplar_match'. Each instance is saved as its own 'proposed'
+    annotation and returned with its outline in the image CRS, or in pixels when
+    crs is NULL."""
     _require_loaded(request)
     state = request.app.state
     image = await _get_image_or_404(request, body.image_id)
@@ -400,6 +430,10 @@ async def segment_concept(
 
 @router.post("/tiled", response_model=JobCreatedResponse, status_code=202)
 async def segment_tiled(body: TiledSegmentRequest, request: Request) -> JobCreatedResponse:
+    """Start a background text-prompt sweep over a georeferenced GeoTIFF (422
+    otherwise) and return 202 with the job id and poll URL. `tile_size` and
+    `overlap` default to settings `tiling`. Results are saved as 'proposed'
+    annotations tagged with `prompt.job_id`."""
     _require_loaded(request)
     state = request.app.state
     image = await _get_image_or_404(request, body.image_id)

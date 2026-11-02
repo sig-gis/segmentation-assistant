@@ -86,6 +86,9 @@ class PointPrompt(BaseModel):
 
 
 class InteractiveSegmentRequest(BaseModel):
+    """One interactive prompt. `points` and `box` are in `coord_space`: pixel
+    (column/row), lonlat (georeferenced images only) or image (the image CRS)."""
+
     image_id: UUID
     points: list[PointPrompt] = Field(default_factory=list)
     box: list[float] | None = Field(
@@ -113,10 +116,9 @@ class InteractiveSegmentRequest(BaseModel):
 class ExemplarRef(BaseModel):
     """One visual exemplar for concept segmentation.
 
-    Either an accepted annotation (its bounding box is used) or a raw
-    pixel-space [xmin, ymin, xmax, ymax] box. `positive=False` marks a
-    counter-example ("not things like this").
-    """
+    Either an annotation on the same image (its bounding box is used) or a raw
+    [xmin, ymin, xmax, ymax] box in the request's `coord_space` (pixel or the
+    image CRS). `positive=False` marks a counter-example ("not things like this")."""
 
     annotation_id: UUID | None = None
     box: list[float] | None = Field(default=None, min_length=4, max_length=4)
@@ -130,6 +132,9 @@ class ExemplarRef(BaseModel):
 
 
 class ConceptSegmentRequest(BaseModel):
+    """Text and/or exemplar prompt. Raw exemplar boxes and `region` are
+    [xmin, ymin, xmax, ymax] in `coord_space`: pixel or image (the image CRS)."""
+
     image_id: UUID
     text: str | None = None
     exemplars: list[ExemplarRef] = Field(default_factory=list)

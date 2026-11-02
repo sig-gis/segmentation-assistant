@@ -60,6 +60,9 @@ def to_numpy(tensor):
 
 
 class SamGeoBackend(Backend):
+    """Backend that wraps samgeo's SamGeo3. One model instance is shared by all
+    calls, and a lock lets only one call use it at a time."""
+
     def __init__(self, settings):
         self._settings = settings
         self._sam = None
@@ -147,6 +150,13 @@ class SamGeoBackend(Backend):
         coord_space: str,
         multimask_output: bool = True,
     ) -> InstanceResult:
+        """Segment one object from point and/or box prompts.
+
+        Points and box are in pixels, or lon/lat when `coord_space` is "lonlat".
+        Returns the highest-scoring mask as geometry in the image CRS (pixels for
+        PNGs), with its score and 1xHxW logits to pass back as `mask_input`.
+        Raises RuntimeError if the model is not loaded, ValueError if the mask is
+        empty."""
         import numpy as np
 
         sam = self._require_sam()
@@ -183,6 +193,13 @@ class SamGeoBackend(Backend):
         exemplars: list["ExemplarBox"] | None = None,
         min_score: float | None = None,
     ) -> list[InstanceResult]:
+        """Find every match for a text prompt and/or exemplar boxes (pixel XYXY,
+        positive or negative).
+
+        Returns one result per match, geometry in the image CRS (pixels for PNGs).
+        `min_score` defaults to `concept.min_score` in settings, or 0.0; lower-scoring
+        and empty matches are dropped. Raises RuntimeError if the model is not
+        loaded, NotImplementedError for exemplars on a non-"meta" backend."""
         import numpy as np
 
         if min_score is None:
@@ -282,6 +299,12 @@ class SamGeoBackend(Backend):
         overlap: int,
         output_dir: str,
     ) -> dict[str, Any]:
+        """Run a tiled text-prompt sweep over the whole image. Blocks until done.
+
+        `tile_size` and `overlap` are in pixels. Writes masks.tif and masks.geojson
+        into `output_dir` (created if needed) and returns their paths as
+        `mask_raster_uri` and `vector_uri`. Raises RuntimeError if the model is not
+        loaded."""
         sam = self._require_sam()
         os.makedirs(output_dir, exist_ok=True)
         mask_raster = os.path.join(output_dir, "masks.tif")

@@ -1,3 +1,9 @@
+"""Image endpoints: register, scan, upload, list, update, reset and display.
+
+All routes: 404 for an unknown image or a missing file, 422 for a file that
+cannot be read.
+"""
+
 import asyncio
 import uuid
 from pathlib import Path
@@ -61,6 +67,8 @@ def _to_response(record, complete_labels: list[str] | None = None) -> ImageRespo
 
 @router.post("", response_model=ImageResponse, status_code=201)
 async def register_image(body: ImageRegisterRequest, request: Request) -> ImageResponse:
+    """Register a GeoTIFF or PNG already on disk at `source_uri`. PNGs get
+    crs NULL. 404 if the file is missing, 422 if it cannot be read."""
     try:
         # file IO + checksum off the event loop
         provenance = {k: getattr(body, k) for k in IMAGE_PROVENANCE_FIELDS}

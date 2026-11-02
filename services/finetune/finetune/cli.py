@@ -124,6 +124,12 @@ def cmd_export(args) -> int:
 
 
 def cmd_train(args) -> int:
+    """Write a run config into vendor/sam3/sam3/train/, submit it to the
+    backend and print the run_id. Returns 0; backend errors propagate.
+
+    With --dsn, inserts a training_runs row (queued, plus
+    dataset_snapshot.json if present) before submit and marks it running
+    after. If submit fails, the row stays queued."""
     from .backends import TrainingJobConfig, make_training_backend
     from .run_config import materialize_run_config
 
@@ -194,6 +200,10 @@ def cmd_extract(args) -> int:
 
 
 def cmd_evaluate(args) -> int:
+    """Compare base vs adapter on the test split and write metrics.json
+    (default: in the adapter dir). Prints a warning if the adapter does not
+    improve mean IoU; it does not block publishing.
+    """
     from .evaluate import compare_base_vs_adapter
 
     metrics = compare_base_vs_adapter(
@@ -215,6 +225,10 @@ def cmd_evaluate(args) -> int:
 
 
 def cmd_publish(args) -> int:
+    """Upload the adapter (with optional metrics) to the Hugging Face Hub.
+
+    With --dsn, records the ref in training_runs.hf_checkpoint_ref, and the
+    metrics if given. Does not check that the adapter beat the base model."""
     from .publish import publish_adapter, record_checkpoint_ref
 
     metrics = None

@@ -188,6 +188,14 @@ def export_coco_dataset(
     fractions: tuple[float, float, float] = (0.7, 0.15, 0.15),
     seed: int = 1234,
 ) -> ExportResult:
+    """Export accepted annotations as COCO train/valid/test folders.
+
+    Records that already have a split keep it; unassigned ones get one from
+    assign_splits (fractions, seed), which is written back to the source.
+    Writes <out_root>/<dataset_name>/{train,valid,test}/ with images
+    (GeoTIFFs as PNG) and _annotations.coco.json. Returns an ExportResult
+    with counts and new assignments. Raises ValueError if the source has no
+    records."""
     records = list(source.fetch(project_ref))
     if not records:
         raise ValueError("dataset source returned no accepted annotations to export")

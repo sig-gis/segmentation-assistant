@@ -46,6 +46,11 @@ IMAGE_PROVENANCE_FIELDS = ("provider", "acquired_at", "license", "source_ref")
 
 @dataclass
 class AnnotationRecord:
+    """One outline on an image. `status` is proposed, accepted or rejected;
+    rejected rows are kept, not deleted. Model rows default `original_geometry`
+    to `geometry` and `edit_method` to "model"; human_new rows default
+    `edit_method` to "drawn"."""
+
     annotation_id: uuid.UUID
     image_id: uuid.UUID
     geometry: dict[str, Any] | None  # GeoJSON MultiPolygon
@@ -105,6 +110,9 @@ class ImageLabelRecord:
 
 @dataclass
 class JobRecord:
+    """A background job row (e.g. a tiled sweep): its params, status and
+    result or error."""
+
     job_id: uuid.UUID
     kind: str
     image_id: uuid.UUID | None

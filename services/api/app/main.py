@@ -33,6 +33,11 @@ def create_app(
     repo: Repository | None = None,
     backend: Backend | None = None,
 ) -> FastAPI:
+    """Build the FastAPI app. On startup: connect the repo (unless one is
+    passed in), create the backend, job runner and the images, logits and
+    outputs dirs, then load the model in the background unless it is already
+    loaded. If the load fails, the error is kept and /healthz reports "error".
+    On shutdown: cancel a pending load, wait for running jobs, close the repo."""
     settings = settings or Settings.from_env()
     injected_repo = repo is not None
 

@@ -9,6 +9,8 @@ Renaming relabels outlines and labeled areas. Renaming onto a label that
 already exists merges the two; the merged label is complete on an image only
 if both were (or the target was not used there), so a merge never claims
 completeness nobody checked.
+
+All routes: 404 for an unknown image.
 """
 
 from __future__ import annotations
@@ -56,6 +58,8 @@ async def image_labels(image_id: uuid.UUID, request: Request) -> list[ImageLabel
 async def set_image_label(
     image_id: uuid.UUID, label: str, body: ImageLabelUpdate, request: Request
 ) -> ImageLabelStatus:
+    """Mark a label complete or not complete on one image. 409 when marking
+    complete while proposals with that label on the image are unreviewed."""
     repo = request.app.state.repo
     await _require_image(repo, image_id)
     statuses = await _image_label_statuses(repo, image_id)
@@ -87,6 +91,10 @@ async def list_labels(request: Request) -> list[LabelSummary]:
 
 @router.post("/labels/rename", response_model=LabelRenameResponse)
 async def rename_label(body: LabelRenameRequest, request: Request) -> LabelRenameResponse:
+    """Rename a label on annotations, labeled areas and completeness rows, on one
+    image or all images. Completeness carries over only if it does not conflict
+    with an existing use of the new label. Returns how many images and rows
+    changed. 422 if the new label is empty or unchanged."""
     repo = request.app.state.repo
     old, new = body.old.strip(), body.new.strip()
     if not new:

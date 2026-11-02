@@ -5,6 +5,9 @@ annotations table; that table is the entire fine-tuning dataset later. A
 geometry edit flips source to 'human_correction' so corrections are
 distinguishable from raw model output, and the model's original outline is
 kept in `original_geometry` with the overlap between the two in `edit_iou`.
+
+All routes: 404 for an unknown annotation or image, 422 for invalid
+geometry.
 """
 
 from __future__ import annotations
@@ -179,6 +182,11 @@ async def create_annotation(
 async def update_annotation(
     annotation_id: uuid.UUID, body: AnnotationUpdateRequest, request: Request
 ) -> AnnotationResponse:
+    """Change label, status, split, created_by and/or geometry; returns the row.
+
+    Any geometry edit sets `edit_method` (default 'vertex_edit'). On a model
+    outline it also sets source='human_correction' and keeps the model's outline
+    in `original_geometry`; `edit_iou` is set whenever that original exists."""
     repo = request.app.state.repo
     existing = await repo.get_annotation(annotation_id)
     if existing is None:
