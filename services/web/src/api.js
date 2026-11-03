@@ -82,10 +82,14 @@ export const api = {
       },
     }),
 
-  startSweep: ({ imageId, text, tileSize, overlap }) =>
+  // exampleId: a saved outline that guides the tile it is in
+  startSweep: ({ imageId, text, tileSize, overlap, exampleId = null }) =>
     request("/segment/tiled", {
       method: "POST",
-      body: { image_id: imageId, text, tile_size: tileSize, overlap },
+      body: {
+        image_id: imageId, text, tile_size: tileSize, overlap,
+        exemplars: exampleId ? [{ annotation_id: exampleId }] : [],
+      },
     }),
   getJob: (jobId) => request(`/segment/jobs/${jobId}`),
 

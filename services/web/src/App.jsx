@@ -613,9 +613,9 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [job, refresh, report]);
 
-  const startSweep = useCallback(async ({ tileSize, overlap }) => {
+  const startSweep = useCallback(async ({ tileSize, overlap, exampleId }) => {
     const created = await run("Starting sweep…", () =>
-      api.startSweep({ imageId, text: label.trim(), tileSize, overlap })
+      api.startSweep({ imageId, text: label.trim(), tileSize, overlap, exampleId })
     );
     if (!created) return;
     store(`sweep:${imageId}`, created.job_id);
@@ -884,6 +884,7 @@ export default function App() {
               <SweepPanel image={image} label={label} modelReady={modelReady} job={job}
                           tiling={tiling} onTiling={setTiling}
                           tileCount={tileGrid?.tiles.length ?? 0}
+                          exampleId={exampleId}
                           onStart={startSweep} sweeps={sweeps} onReview={reviewSweep}
                           onBulk={bulkOutlines} />
             )}

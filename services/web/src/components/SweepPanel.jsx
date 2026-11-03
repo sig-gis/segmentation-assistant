@@ -56,13 +56,15 @@ export default function SweepPanel({
   tiling,
   onTiling,
   tileCount,
+  exampleId,
   onStart,
   sweeps,
   onReview,
   onBulk,
 }) {
   const running = job && (job.status === "queued" || job.status === "running");
-  const georeferenced = image.kind === "geotiff" && image.crs;
+  const [useExample, setUseExample] = useState(true);
+  const withExample = useExample && Boolean(exampleId);
   const pixel = pixelSizeText(image);
 
   return (
@@ -77,40 +79,46 @@ export default function SweepPanel({
         <p className="small">
           {image.width} × {image.height} px{pixel ? ` · ${pixel} per pixel` : ""}
         </p>
-        {!georeferenced ? (
-          <p className="muted small">Sweeps need a georeferenced GeoTIFF.</p>
-        ) : (
-          <>
-            <p className="muted small">
-              Looks for every “{label || "…"}” across the image in overlapping tiles. Can take
-              minutes. Results have no confidence scores.
-            </p>
-            <div className="row">
-              <label className="field inline">
-                Tile size
-                <input type="number" min="64" value={tiling.size ?? ""}
-                       onChange={(e) => onTiling({ ...tiling, size: numberOrEmpty(e.target.value) })} />
-              </label>
-              <label className="field inline">
-                Overlap
-                <input type="number" min="0" value={tiling.overlap ?? ""}
-                       onChange={(e) => onTiling({ ...tiling, overlap: numberOrEmpty(e.target.value) })} />
-              </label>
-            </div>
-            {tileCount ? (
-              <p className="muted small">
-                {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tiles)
-              </p>
-            ) : (
-              <p className="muted small">Overlap must be smaller than the tile size (at least 64).</p>
-            )}
-            <button className="primary"
-                    disabled={!modelReady || !label || running || !tileCount || tiling.size === "" || tiling.overlap === ""}
-                    onClick={() => onStart({ tileSize: tiling.size, overlap: tiling.overlap })}>
-              {running ? "Sweep running…" : `Sweep for “${label}”`}
-            </button>
-          </>
+        <p className="muted small">
+          Looks for every “{label || "…"}” across the image in overlapping tiles. Can take
+          minutes. Objects cut by a tile edge are joined back into one outline.
+        </p>
+        <label className="check"
+               title="Open a saved outline first (Pan / select, click it) to use it as the example">
+          <input type="checkbox" checked={withExample} disabled={!exampleId}
+                 onChange={(e) => setUseExample(e.target.checked)} />
+          Sweep for things that look like the open saved outline
+        </label>
+        {withExample && (
+          <p className="muted small">
+            The example guides the tile it is in; other tiles search by the name “{label}”.
+          </p>
         )}
+        <div className="row">
+          <label className="field inline">
+            Tile size
+            <input type="number" min="64" value={tiling.size ?? ""}
+                   onChange={(e) => onTiling({ ...tiling, size: numberOrEmpty(e.target.value) })} />
+          </label>
+          <label className="field inline">
+            Overlap
+            <input type="number" min="0" value={tiling.overlap ?? ""}
+                   onChange={(e) => onTiling({ ...tiling, overlap: numberOrEmpty(e.target.value) })} />
+          </label>
+        </div>
+        {tileCount ? (
+          <p className="muted small">
+            {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tiles)
+          </p>
+        ) : (
+          <p className="muted small">Overlap must be smaller than the tile size (at least 64).</p>
+        )}
+        <button className="primary"
+                disabled={!modelReady || !label || running || !tileCount || tiling.size === "" || tiling.overlap === ""}
+                onClick={() => onStart({ tileSize: tiling.size, overlap: tiling.overlap,
+                                         exampleId: withExample ? exampleId : null })}>
+          {running ? "Sweep running…" : withExample ? `Sweep similar “${label}”` : `Sweep for “${label}”`}
+        </button>
         {job && (
           <p className="small">
             Last sweep: <b>{job.status}</b>
