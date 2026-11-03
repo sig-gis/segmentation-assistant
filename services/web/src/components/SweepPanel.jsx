@@ -110,7 +110,7 @@ export default function SweepPanel({
           <p className="muted small">…</p>
         ) : tileCount ? (
           <p className="muted small">
-            {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tiles)
+            {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tile)
           </p>
         ) : (
           <p className="muted small">Overlap must be smaller than the tile size (at least 64).</p>

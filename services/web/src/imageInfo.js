@@ -24,6 +24,15 @@ export function metresPerPixel(image) {
 
 const short = (n) => Number(n.toPrecision(4));
 
+// "1.26 km" for a length in pixels; pixels when the image has no size in
+// metres.
+export function lengthText(px, image) {
+  const m = metresPerPixel(image);
+  if (!m) return `${px} px`;
+  const length = px * m;
+  return length >= 1000 ? `${short(length / 1000)} km` : `${short(length)} m`;
+}
+
 // "10.08 km, 101.6 km²" for a width x height in pixels; pixels when the image
 // has no size in metres.
 export function sizeText(width, height, image) {

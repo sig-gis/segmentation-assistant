@@ -10,7 +10,8 @@ import {
 } from "./draft.js";
 import { combine } from "./shapes.js";
 import { imageFrame } from "./frame.js";
-import { sizeText } from "./imageInfo.js";
+import { lengthText, sizeText } from "./imageInfo.js";
+import { tileBox } from "./tileBox.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
 import { nextId, reviewQueue, sweepsIn } from "./review.js";
 import AreasPanel from "./components/AreasPanel.jsx";
@@ -171,6 +172,26 @@ export default function App() {
   }, [imageId, tilingKey, tiling.size, tiling.overlap]);
   // null while the grid for the current settings is loading
   const tileCount = tileGrid?.key === tilingKey ? tileGrid.tiles.length : null;
+  // the one sweep tile on the map: dragged by the user, reset per image.
+  // The tile grid covers the image, so its bounds are the image extent.
+  const [tileCenter, setTileCenter] = useState(null);
+  useEffect(() => setTileCenter(null), [imageId]);
+  const imageExtent = useMemo(
+    () => (frame && tileGrid?.tiles.length && tileGrid.key.startsWith(`${imageId}|`)
+      ? extentOf({ type: "MultiPolygon",
+                   coordinates: tileGrid.tiles.map((t) => frame.toMap(t.geometry).coordinates) })
+      : null),
+    [frame, tileGrid, imageId]
+  );
+  const shownTile = useMemo(() => {
+    const pixel = frame?.georeferenced ? (image?.pixel_size ?? 1) : 1;
+    const box = tileBox({ center: tileCenter, sizePx: tiling.size, overlapPx: tiling.overlap,
+                          pixel, extent: imageExtent });
+    if (!box) return null;
+    const [x0, y0, x1, y1] = box.outer;
+    const size = sizeText(Math.round((x1 - x0) / pixel), Math.round((y1 - y0) / pixel), image);
+    return { ...box, label: `${size} · overlap ${lengthText(tiling.overlap || 0, image)}` };
+  }, [frame, image, tileCenter, tiling.size, tiling.overlap, imageExtent]);
   const tileFeatures = useMemo(() => (tileGrid?.tiles ?? []).map((t) => {
     const [x0, y0, x1, y1] = t.pixel_box;
     return { geometry: t.geometry, size: sizeText(x1 - x0, y1 - y0, image) };
@@ -820,7 +841,9 @@ export default function App() {
             suggestions={shownLayers.suggestions}
             showLabels={showLabels}
             areas={visibility.areas ? areas : []}
-            tiles={visibility.tiles ? tileFeatures : []}
+            tiles={visibility.tiles && visibility.allTiles ? tileFeatures : []}
+            tileBox={visibility.tiles ? shownTile : null}
+            onTileMove={setTileCenter}
             draft={draft}
             draftTool={draftTool}
             mode={mode}

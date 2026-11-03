@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { metresPerPixel, pixelSizeText, sizeText } from "./imageInfo.js";
+import { lengthText, metresPerPixel, pixelSizeText, sizeText } from "./imageInfo.js";
 
 describe("pixelSizeText", () => {
   it("reads metres from a UTM image", () => {
@@ -37,5 +37,13 @@ describe("sizeText", () => {
   });
   it("falls back to pixels", () => {
     expect(sizeText(1008, 1008, { crs: null })).toBe("1008 px, 1,016,064 px²");
+  });
+});
+
+describe("lengthText", () => {
+  it("gives a length in m or km, or px", () => {
+    expect(lengthText(126, utm)).toBe("1.26 km");
+    expect(lengthText(12, utm)).toBe("120 m");
+    expect(lengthText(126, { crs: null })).toBe("126 px");
   });
 });

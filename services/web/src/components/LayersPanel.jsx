@@ -3,7 +3,7 @@ const LAYERS = [
   ["saved", "Saved outlines", "Outlines you have saved"],
   ["suggestions", "Suggestions", "Unreviewed outlines from Find similar and sweeps"],
   ["areas", "Labeled areas", "Rectangles marked on the Review tab"],
-  ["tiles", "Sweep tiles", "The tiles a sweep with the Sweep tab's settings would use"],
+  ["tiles", "Sweep tile", "One sweep tile (Sweep tab settings) with its overlap; drag it with Pan / select"],
 ];
 
 export default function LayersPanel({ visibility, onChange, showLabels, onShowLabels,
@@ -17,6 +17,11 @@ export default function LayersPanel({ visibility, onChange, showLabels, onShowLa
           {text}
         </label>
       ))}
+      <label className="check nested" title="Every tile a sweep with these settings would use">
+        <input type="checkbox" checked={!!visibility.allTiles} disabled={!visibility.tiles}
+               onChange={(e) => onChange({ ...visibility, allTiles: e.target.checked })} />
+        Show all tiles
+      </label>
       <label className="check" title="Write each outline's label on the map">
         <input type="checkbox" checked={showLabels} onChange={(e) => onShowLabels(e.target.checked)} />
         Label names

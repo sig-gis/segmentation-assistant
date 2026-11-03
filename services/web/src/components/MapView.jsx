@@ -10,6 +10,8 @@
 //   click   click an object; SAM outlines it
 //   draw    draw an outline by hand (double-click to finish)
 //   area    drag a rectangle to mark a labeled area
+// The sweep tile box (`tileBox`) can be dragged in pan mode; `onTileMove`
+// gets its new centre and the parent sends back the box, kept in the image.
 // While a draft is open (`draftTool`):
 //   corners drag a corner, click an edge to add one, click a corner to
 //           select it, Shift+click a second corner to select the stretch
@@ -24,10 +26,12 @@ import Feature from "ol/Feature.js";
 import Map from "ol/Map.js";
 import View from "ol/View.js";
 import GeoJSON from "ol/format/GeoJSON.js";
+import LineString from "ol/geom/LineString.js";
 import Point from "ol/geom/Point.js";
-import { fromExtent } from "ol/geom/Polygon.js";
+import Polygon, { fromExtent } from "ol/geom/Polygon.js";
 import Draw, { createBox } from "ol/interaction/Draw.js";
 import Modify from "ol/interaction/Modify.js";
+import Translate from "ol/interaction/Translate.js";
 import ImageLayer from "ol/layer/Image.js";
 import TileLayer from "ol/layer/WebGLTile.js";
 import VectorLayer from "ol/layer/Vector.js";
@@ -35,13 +39,14 @@ import GeoTIFF from "ol/source/GeoTIFF.js";
 import ImageStatic from "ol/source/ImageStatic.js";
 import VectorSource from "ol/source/Vector.js";
 import { defaults as defaultControls, ScaleLine } from "ol/control.js";
-import { buffer, getHeight, getWidth } from "ol/extent.js";
+import { buffer, getCenter, getHeight, getWidth } from "ol/extent.js";
 import "ol/ol.css";
 
 import { api } from "../api.js";
 import { holeAt, nearestVertex } from "../draft.js";
 import {
-  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, suggestionStyle, tileStyle,
+  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, suggestionStyle, tileBoxStyle,
+  tileStyle,
 } from "../styles.js";
 
 const format = new GeoJSON();
@@ -61,6 +66,7 @@ export default function MapView({
   showLabels = true,
   areas = [],
   tiles = [],
+  tileBox = null,
   draft = null,
   draftTool = "corners",
   highlight = {},
@@ -77,6 +83,7 @@ export default function MapView({
   onVertexSelect,
   onHoleSelect,
   onDraftShape,
+  onTileMove,
 }) {
   const target = useRef(null);
   const mapRef = useRef(null);
@@ -85,6 +92,7 @@ export default function MapView({
     suggestions: new VectorSource(),
     areas: new VectorSource(),
     tiles: new VectorSource(),
+    tileBox: new VectorSource(),
     draft: new VectorSource(),
     marks: new VectorSource(),
   });
@@ -102,6 +110,7 @@ export default function MapView({
     layers.current = {
       tiles: new VectorLayer({ source: s.tiles, style: tileStyle, zIndex: 4, declutter: true }),
       areas: new VectorLayer({ source: s.areas, style: areaStyle, zIndex: 5 }),
+      tileBox: new VectorLayer({ source: s.tileBox, style: tileBoxStyle, zIndex: 9 }),
       saved: new VectorLayer({ source: s.saved, zIndex: 10 }),
       suggestions: new VectorLayer({ source: s.suggestions, zIndex: 11 }),
       draft: new VectorLayer({ source: s.draft, zIndex: 20 }),
@@ -223,6 +232,30 @@ export default function MapView({
     if (!frame) return;
     source.addFeatures(tiles.map((t) => featureFrom(frame.toMap(t.geometry), null, { size: t.size })));
   }, [tiles, frame]);
+
+  // the sweep tile box: { outer, inner (extents or null), label }; in pan
+  // mode it can be dragged (all its parts move together)
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = sources.current.tileBox;
+    source.clear();
+    if (!map || !tileBox) return;
+    const outer = fromExtent(tileBox.outer);
+    const parts = [new Feature({ geometry: outer, part: "band" })];
+    if (tileBox.inner) {
+      const inner = fromExtent(tileBox.inner);
+      outer.appendLinearRing(inner.getLinearRing(0)); // the band is the ring between
+      parts.push(new Feature({ geometry: new LineString(inner.getCoordinates()[0]), part: "inner" }));
+    }
+    parts.push(new Feature({ geometry: new Point(getCenter(tileBox.outer)), part: "label",
+                             text: tileBox.label }));
+    source.addFeatures(parts);
+    if (mode !== "pan" || draft) return;
+    const translate = new Translate({ features: new Collection(parts), hitTolerance: 4 });
+    translate.on("translateend", () => onTileMove?.(getCenter(outer.getExtent())));
+    map.addInteraction(translate);
+    return () => map.removeInteraction(translate);
+  }, [tileBox, mode, draft, onTileMove]);
 
   // the draft, its refinement clicks and its box
   useEffect(() => {

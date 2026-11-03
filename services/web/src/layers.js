@@ -5,7 +5,8 @@ export const defaultVisibility = {
   saved: true,
   suggestions: false,
   areas: true,
-  tiles: false,
+  tiles: false,      // one draggable tile with its overlap
+  allTiles: false,   // every tile of a sweep (only with `tiles`)
   hiddenLabels: [],
 };
 
