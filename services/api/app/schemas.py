@@ -67,6 +67,18 @@ class ImageResponse(BaseModel):
     )
 
 
+class Tile(BaseModel):
+    pixel_box: list[int] = Field(description="[x0, y0, x1, y1] in pixels")
+    geometry: dict[str, Any] = Field(description="GeoJSON Polygon in coord_space")
+
+
+class TileGridResponse(BaseModel):
+    tile_size: int
+    overlap: int
+    coord_space: Literal["image", "pixel"]
+    tiles: list[Tile]
+
+
 # ---------------------------------------------------------------------------
 # Segmentation
 # ---------------------------------------------------------------------------

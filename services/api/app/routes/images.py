@@ -1,4 +1,5 @@
-"""Image endpoints: register, scan, upload, list, update, reset and display.
+"""Image endpoints: register, scan, upload, list, update, reset, display and
+tiles.
 
 All routes: 404 for an unknown image or a missing file, 422 for a file that
 cannot be read.
@@ -8,19 +9,21 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from ..display import build_display_cog
 
 from ..imaging import infer_kind, inspect_image
 from ..repository import IMAGE_PROVENANCE_FIELDS
+from ..tiles import tile_grid
 from ..schemas import (
     ImageRegisterRequest,
     ImageResetResponse,
     ImageResponse,
     ImageScanResponse,
     ImageUpdateRequest,
+    TileGridResponse,
 )
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -167,6 +170,55 @@ async def get_image(image_id: uuid.UUID, request: Request) -> ImageResponse:
         raise HTTPException(status_code=404, detail="image not found")
     complete = await repo.complete_labels()
     return _to_response(record, complete.get(record.image_id))
+
+
+@router.get("/{image_id}/tiles", response_model=TileGridResponse)
+async def get_tiles(
+    image_id: uuid.UUID,
+    request: Request,
+    size: int | None = Query(default=None, ge=64),
+    overlap: int | None = Query(default=None, ge=0),
+) -> TileGridResponse:
+    """The tiles a sweep with these settings would run on (defaults from
+    settings), as polygons in the image's coordinates for the map overlay."""
+    from ..geo import read_raster_transform
+
+    record = await request.app.state.repo.get_image(image_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="image not found")
+    tiling = request.app.state.settings.tiling
+    size = size or tiling["tile_size"]
+    if overlap is None:
+        # the configured overlap, unless it does not fit a smaller requested tile
+        overlap = tiling["overlap"] if tiling["overlap"] < size else size // 8
+    try:
+        boxes = tile_grid(record.width, record.height, size, overlap)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    transform = None
+    if record.crs:
+        transform = await asyncio.to_thread(read_raster_transform, record.source_uri)
+
+    def corner(x, y):
+        return list(transform @ (x, y)) if transform else [x, y]
+
+    tiles = [
+        {
+            "pixel_box": list(box),
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[corner(box[0], box[1]), corner(box[2], box[1]),
+                                 corner(box[2], box[3]), corner(box[0], box[3]),
+                                 corner(box[0], box[1])]],
+            },
+        }
+        for box in boxes
+    ]
+    return TileGridResponse(
+        tile_size=size, overlap=overlap,
+        coord_space="image" if record.crs else "pixel", tiles=tiles,
+    )
 
 
 @router.put("/{image_id}", response_model=ImageResponse)
