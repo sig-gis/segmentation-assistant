@@ -280,7 +280,8 @@ class MockBackend(Backend):
             for i in range(self.concept_instance_count)
         ]
 
-    def run_tiled(self, image, text, tile_size, overlap, output_dir) -> dict[str, Any]:
+    def run_tiled(self, image, text, tile_size, overlap, output_dir,
+                  exemplars=None) -> dict[str, Any]:
         self.tiled_calls.append(
             {
                 "image_id": image.image_id,
@@ -288,6 +289,7 @@ class MockBackend(Backend):
                 "tile_size": tile_size,
                 "overlap": overlap,
                 "output_dir": output_dir,
+                "exemplars": exemplars,
             }
         )
         if self.fail_tiled is not None:
@@ -301,14 +303,11 @@ class MockBackend(Backend):
             features = [
                 {
                     "type": "Feature",
-                    "properties": {"value": float(i)},
+                    "properties": {"score": 0.8 - 0.1 * i, "pieces": 1 + i},
                     "geometry": square_geometry(x0=10 + 40 * i),
                 }
                 for i in range(self.tiled_feature_count)
             ]
             with open(vector_uri, "w") as f:
                 json.dump({"type": "FeatureCollection", "features": features}, f)
-        return {
-            "mask_raster_uri": os.path.join(output_dir, "masks.tif"),
-            "vector_uri": vector_uri,
-        }
+        return {"vector_uri": vector_uri}

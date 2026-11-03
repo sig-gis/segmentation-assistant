@@ -19,7 +19,7 @@ import json
 import logging
 import uuid
 
-from .backends.base import Backend
+from .backends.base import Backend, ExemplarBox
 from .outline import clean_outline, cleanup_record, image_pixel_size
 from .repository import AnnotationRecord, Repository, as_multipolygon
 
@@ -87,6 +87,8 @@ class JobRunner:
                     params["tile_size"],
                     params["overlap"],
                     output_dir,
+                    [ExemplarBox(box=tuple(e["box"]), positive=e["positive"])
+                     for e in params.get("exemplars") or []],
                 )
             # Ingest failures must not discard an expensive completed sweep:
             # the raster and vector files are already on disk and still useful.
@@ -113,9 +115,8 @@ class JobRunner:
         Rows land as `proposed` and are tagged with `prompt.job_id`, so one
         sweep's output can be reviewed — or discarded — as a set.
 
-        Note: samgeo's tiled path writes a raster of blob IDs, so the vectorised
-        features carry no confidence scores. `score` is therefore NULL here and
-        score-based triage is not available for sweeps.
+        Each feature carries its score and the tile pieces it was joined from
+        (see app/sweep.py); the joined outline is the model's original.
         """
         vector_uri = result.get("vector_uri")
         if not vector_uri:
@@ -124,11 +125,12 @@ class JobRunner:
         features = await asyncio.to_thread(_read_geojson_features, vector_uri)
         label = params.get("text") or "unlabeled"
         prompt = {
-            "type": "text",
+            "type": "text+exemplar" if params.get("exemplars") else "text",
             "value": params.get("text"),
             "job_id": str(job_id),
             "tile_size": params.get("tile_size"),
             "overlap": params.get("overlap"),
+            "exemplars": params.get("exemplars") or [],
             "backend": self._settings.model["backend"],
             "model": self._settings.model["model_id"],
             "cleanup": cleanup_record(False, "off"),
@@ -145,6 +147,8 @@ class JobRunner:
             except ValueError:
                 continue  # skip stray points/lines rather than failing the job
             cleaned = clean_outline(multipolygon, pixel)
+            properties = feature.get("properties") or {}
+            pieces = properties.get("pieces")
             await self._repo.add_annotation(
                 AnnotationRecord(
                     annotation_id=uuid.uuid4(),
@@ -153,8 +157,9 @@ class JobRunner:
                     original_geometry=multipolygon,
                     label=label,
                     source="model",
-                    prompt=prompt,
-                    score=None,
+                    prompt={**prompt,
+                            "pieces": len(pieces) if isinstance(pieces, list) else pieces},
+                    score=properties.get("score"),
                 )
             )
             stored += 1

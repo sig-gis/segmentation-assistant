@@ -177,10 +177,17 @@ class ConceptSegmentRequest(BaseModel):
 
 
 class TiledSegmentRequest(BaseModel):
+    """A sweep for `text`, optionally guided by visual examples. Each example
+    is used in the tile that contains it; other tiles use the text alone."""
+
     image_id: UUID
     text: str
     tile_size: int | None = Field(default=None, ge=64)
     overlap: int | None = Field(default=None, ge=0)
+    exemplars: list[ExemplarRef] = Field(default_factory=list)
+    coord_space: Literal["pixel", "image"] = Field(
+        default="pixel", description="Space of exemplar boxes: pixel or image CRS"
+    )
 
 
 class PolygonFeature(BaseModel):

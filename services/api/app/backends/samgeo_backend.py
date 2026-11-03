@@ -5,19 +5,19 @@ Built against signatures verified in the samgeo checkout (samgeo3.py):
   predict_inst(point_coords, point_labels, box, mask_input, multimask_output,
                point_crs, box_crs) -> (masks CxHxW, scores C, logits Cx256x256)
   generate_masks(prompt, min_size, max_size)  # populates .masks/.scores
-  generate_masks_tiled(source, prompt, output, tile_size, overlap, ...)
-  raster_to_vector(raster, vector)
+  set_image(path or uint8 array)  # sweeps pass one tile at a time
 
 Tests inject a mock Backend, so this class only runs in the api container
 with a GPU and HF_TOKEN (gated facebook/sam3 weights download on first
-load()). Interactive, concept (text and exemplar) and tiled paths have all
-been run there.
+load()). Interactive and concept (text and exemplar) paths have been run
+there; sweeps use our own tile loop (app/sweep.py) over set_image.
 """
 
 from __future__ import annotations
 
 import os
 import threading
+from types import SimpleNamespace
 from typing import Any, TYPE_CHECKING
 
 from ..geo import mask_to_geojson, read_raster_transform
@@ -298,29 +298,54 @@ class SamGeoBackend(Backend):
         tile_size: int,
         overlap: int,
         output_dir: str,
+        exemplars: list["ExemplarBox"] | None = None,
     ) -> dict[str, Any]:
-        """Run a tiled text-prompt sweep over the whole image. Blocks until done.
+        """Sweep the whole image tile by tile (app/sweep.py). Blocks until done.
 
-        `tile_size` and `overlap` are in pixels. Writes masks.tif and masks.geojson
-        into `output_dir` (created if needed) and returns their paths as
-        `mask_raster_uri` and `vector_uri`. Raises RuntimeError if the model is not
-        loaded."""
+        `tile_size` and `overlap` are in pixels; `exemplars` (pixel boxes) are
+        used in the tile that holds them. Writes masks.geojson into
+        `output_dir`: one feature per object, joined across tile edges, with
+        its `score` and the tile `pieces` it came from. Returns its path as
+        `vector_uri`. Raises RuntimeError if the model is not loaded."""
+        import json
+
+        import numpy as np
+
+        from ..sweep import run_sweep
+
         sam = self._require_sam()
+
+        def predict(rgb, offset, prompt, tile_exemplars):
+            sam.set_image(rgb)
+            if tile_exemplars:
+                tile = SimpleNamespace(width=rgb.shape[1], height=rgb.shape[0])
+                masks, scores = self._concept_with_exemplars(sam, tile, prompt, tile_exemplars)
+            else:
+                sam.generate_masks(prompt=prompt, quiet=True)
+                masks, scores = sam.masks, sam.scores
+            return [
+                (np.asarray(m).reshape(rgb.shape[:2]).astype(bool),
+                 float(scores[i]) if scores is not None and len(scores) > i else None)
+                for i, m in enumerate(masks if masks is not None else [])
+            ]
+
         os.makedirs(output_dir, exist_ok=True)
-        mask_raster = os.path.join(output_dir, "masks.tif")
         vector_path = os.path.join(output_dir, "masks.geojson")
         with self._lock:
-            # generate_masks_tiled requires a file source and handles GeoTIFFs
-            # natively; for PNGs samgeo still tiles in pixel space (tiling is
-            # about not downsampling, independent of georeferencing).
-            sam.generate_masks_tiled(
-                source=image.source_uri,
-                prompt=text,
-                output=mask_raster,
-                tile_size=tile_size,
-                overlap=overlap,
-                min_size=self._settings.tiling.get("min_size", 0),
+            # set_image below replaces the image a click would reuse
+            self._current_source = None
+            features = run_sweep(
+                image.source_uri,
+                image.crs if image.kind == "geotiff" else None,
+                text, tile_size, overlap, predict,
+                exemplars=exemplars,
+                min_size=self._settings.tiling.get("min_size") or 0,
                 max_size=self._settings.tiling.get("max_size"),
             )
-            sam.raster_to_vector(mask_raster, vector_path)
-        return {"mask_raster_uri": mask_raster, "vector_uri": vector_path}
+        with open(vector_path, "w") as f:
+            json.dump({"type": "FeatureCollection", "features": [
+                {"type": "Feature", "geometry": feat["geometry"],
+                 "properties": {"score": feat["score"], "pieces": feat["pieces"]}}
+                for feat in features
+            ]}, f)
+        return {"vector_uri": vector_path}

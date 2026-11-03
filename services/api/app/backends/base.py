@@ -92,6 +92,8 @@ class Backend(ABC):
         tile_size: int,
         overlap: int,
         output_dir: str,
+        exemplars: list["ExemplarBox"] | None = None,
     ) -> dict[str, Any]:
-        """Full-scene sliding-window sweep; returns output artifact URIs.
+        """Full-scene tiled sweep, objects joined across tile edges; returns
+        {"vector_uri": GeoJSON with a score and tile pieces per object}.
         Long-running — only ever called from the async job runner."""

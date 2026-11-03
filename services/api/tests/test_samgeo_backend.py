@@ -215,3 +215,47 @@ def test_transformers_backend_is_refused_clearly(backend_and_image):
         backend._concept_with_exemplars(
             sam, image, "field", [ExemplarBox(box=(0, 0, 1, 1))]
         )
+
+
+class FakeSweepSam:
+    """SamGeo3 stand-in for sweeps: finds one 10x10 square in every tile."""
+
+    backend = "meta"
+
+    def __init__(self):
+        self.images = []
+
+    def set_image(self, image):
+        self.images.append(image)
+
+    def generate_masks(self, prompt, quiet=False):
+        h, w = self.images[-1].shape[:2]
+        mask = np.zeros((h, w), dtype=bool)
+        mask[2:12, 2:12] = True
+        # numpy N x 1 x H x W, as samgeo returns after its numpy conversion
+        self.masks, self.scores = mask[None, None], np.array([0.7])
+
+
+def test_sweep_runs_every_tile_and_writes_scored_outlines(tmp_path):
+    import json
+
+    from PIL import Image
+
+    path = tmp_path / "img.png"
+    Image.fromarray(np.zeros((100, 150, 3), dtype=np.uint8)).save(path)
+    settings = Settings(database_url="", data_dir=tmp_path)
+    backend = SamGeoBackend(settings)
+    backend._sam = FakeSweepSam()
+    backend._current_source = "something else"
+    image = ImageRecord(image_id="00000000-0000-0000-0000-000000000001",
+                        source_uri=str(path), kind="png", crs=None,
+                        width=150, height=100, checksum=None)
+
+    result = backend.run_tiled(image, "field", 100, 20, str(tmp_path / "out"))
+
+    assert len(backend._sam.images) == 2           # two 100-px tiles across
+    assert backend._current_source is None         # the next click re-sets the image
+    with open(result["vector_uri"]) as f:
+        features = json.load(f)["features"]
+    assert len(features) == 2
+    assert all(f["properties"]["score"] == 0.7 for f in features)

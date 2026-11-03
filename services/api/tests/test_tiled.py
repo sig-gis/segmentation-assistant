@@ -23,7 +23,6 @@ def test_tiled_job_runs_async_and_succeeds(client, backend, geotiff_image):
 
     finished = _wait_for_job(client, body["poll"])
     assert finished["status"] == "succeeded"
-    assert finished["result"]["mask_raster_uri"].endswith("masks.tif")
     assert finished["result"]["vector_uri"].endswith("masks.geojson")
 
     call = backend.tiled_calls[0]
@@ -97,8 +96,9 @@ def test_sweep_results_are_persisted_as_annotations(client, repo, backend, geoti
         assert annotation.source == "model"
         assert annotation.label == "building"      # from the sweep's prompt
         assert annotation.geometry["type"] == "MultiPolygon"
-        # samgeo's tiled raster carries no confidence, so this must be honest
-        assert annotation.score is None
+        # each object keeps its score and how many tile pieces it was joined from
+        assert annotation.score is not None
+        assert annotation.prompt["pieces"] >= 1
         assert annotation.prompt["tile_size"] == 1024
 
 
@@ -171,10 +171,26 @@ def test_discard_unknown_job_404(client, missing_uuid):
     assert client.delete(f"/segment/jobs/{missing_uuid}/annotations").status_code == 404
 
 
-def test_png_is_refused_before_a_job_is_created(client, repo, png_image):
+def test_png_can_be_swept(client, backend, png_image):
     response = client.post(
         "/segment/tiled", json={"image_id": png_image["image_id"], "text": "field"}
     )
-    assert response.status_code == 422
-    assert "GeoTIFF" in response.json()["detail"]
-    assert repo.jobs == {}
+    assert response.status_code == 202, response.text
+    assert _wait_for_job(client, response.json()["poll"])["status"] == "succeeded"
+
+
+def test_sweep_with_a_visual_example(client, repo, backend, png_image):
+    response = client.post(
+        "/segment/tiled",
+        json={"image_id": png_image["image_id"], "text": "field",
+              "exemplars": [{"box": [5, 5, 15, 15]}]},
+    )
+    assert response.status_code == 202, response.text
+    _wait_for_job(client, response.json()["poll"])
+    sent = backend.tiled_calls[0]["exemplars"]
+    assert [e.box for e in sent] == [(5, 5, 15, 15)] and sent[0].positive
+    job = repo.jobs[__import__("uuid").UUID(response.json()["job_id"])]
+    assert job.params["exemplars"] == [{"box": [5, 5, 15, 15], "positive": True}]
+    stored = [a for a in repo.annotations.values()
+              if (a.prompt or {}).get("job_id") == response.json()["job_id"]]
+    assert stored and stored[0].prompt["type"] == "text+exemplar"

@@ -15,24 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
+from .stretch import apply_limits, stretch_limits
+
 _STRIP_ROWS = 1024
-_SAMPLE_SIZE = 1024
-
-
-def _stretch_limits(src, bands: list[int]) -> list[tuple[float, float]]:
-    """2nd-98th percentile per band, from a reduced read of the image."""
-    scale = max(1, max(src.width, src.height) // _SAMPLE_SIZE)
-    shape = (len(bands), max(1, src.height // scale), max(1, src.width // scale))
-    sample = src.read(bands, out_shape=shape, masked=True)
-    limits = []
-    for band in sample:
-        values = band.compressed()
-        if values.size == 0:
-            limits.append((0.0, 1.0))
-            continue
-        lo, hi = np.percentile(values, (2, 98))
-        limits.append((float(lo), float(hi) if hi > lo else float(lo) + 1.0))
-    return limits
 
 
 def build_display_cog(source_uri: str, out_path: Path) -> Path:
@@ -47,7 +32,7 @@ def build_display_cog(source_uri: str, out_path: Path) -> Path:
     with rasterio.open(source_uri) as src:
         bands = [1, 2, 3] if src.count >= 3 else [1, 1, 1]
         # 8-bit sources keep their colors; anything else is contrast-stretched
-        limits = None if src.dtypes[0] == "uint8" else _stretch_limits(src, bands)
+        limits = None if src.dtypes[0] == "uint8" else stretch_limits(src, bands)
         profile = {
             "driver": "GTiff", "width": src.width, "height": src.height, "count": 3,
             "dtype": "uint8", "crs": src.crs, "transform": src.transform, "nodata": 0,
@@ -57,13 +42,7 @@ def build_display_cog(source_uri: str, out_path: Path) -> Path:
             for row in range(0, src.height, _STRIP_ROWS):
                 window = Window(0, row, src.width, min(_STRIP_ROWS, src.height - row))
                 data = src.read(bands, window=window, masked=True)
-                if limits is None:
-                    values = data.filled(0).astype(np.float32)
-                else:
-                    values = np.stack([
-                        (band.filled(lo).astype(np.float32) - lo) / (hi - lo) * 255.0
-                        for band, (lo, hi) in zip(data, limits)
-                    ])
+                values = apply_limits(data, limits)
                 # real pixels are 1..255 so 0 can mean "no data"
                 out = np.clip(values, 1, 255).astype(np.uint8)
                 invalid = np.ma.getmaskarray(data).any(axis=0)

@@ -430,29 +430,29 @@ async def segment_concept(
 
 @router.post("/tiled", response_model=JobCreatedResponse, status_code=202)
 async def segment_tiled(body: TiledSegmentRequest, request: Request) -> JobCreatedResponse:
-    """Start a background text-prompt sweep over a georeferenced GeoTIFF (422
-    otherwise) and return 202 with the job id and poll URL. `tile_size` and
-    `overlap` default to settings `tiling`. Results are saved as 'proposed'
-    annotations tagged with `prompt.job_id`."""
+    """Start a background sweep (text, plus optional visual examples) over a
+    GeoTIFF or PNG and return 202 with the job id and poll URL. `tile_size` and
+    `overlap` default to settings `tiling` (422 if overlap >= tile size).
+    Results are saved as 'proposed' annotations tagged with `prompt.job_id`."""
     _require_loaded(request)
     state = request.app.state
     image = await _get_image_or_404(request, body.image_id)
-    if image.kind != "geotiff" or not image.crs:
-        raise HTTPException(
-            status_code=422,
-            detail="tiled sweeps need a georeferenced GeoTIFF; use clicks or find "
-            "similar on this image instead",
-        )
-
     tiling = state.settings.tiling
+    tile_size = body.tile_size or tiling["tile_size"]
+    overlap = body.overlap if body.overlap is not None else tiling["overlap"]
+    if overlap >= tile_size:
+        raise HTTPException(status_code=422, detail="overlap must be smaller than the tile size")
+    exemplars, _ = await _resolve_exemplars(request, body, image)
+
     job = JobRecord(
         job_id=uuid.uuid4(),
         kind="tiled_segmentation",
         image_id=image.image_id,
         params={
             "text": body.text,
-            "tile_size": body.tile_size or tiling["tile_size"],
-            "overlap": body.overlap if body.overlap is not None else tiling["overlap"],
+            "tile_size": tile_size,
+            "overlap": overlap,
+            "exemplars": [{"box": list(e.box), "positive": e.positive} for e in exemplars],
         },
     )
     await state.repo.create_job(job)
