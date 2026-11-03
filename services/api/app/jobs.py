@@ -89,6 +89,8 @@ class JobRunner:
                     output_dir,
                     [ExemplarBox(box=tuple(e["box"]), positive=e["positive"])
                      for e in params.get("exemplars") or []],
+                    params.get("min_size") or 0,
+                    params.get("max_size"),
                 )
             # Ingest failures must not discard an expensive completed sweep:
             # the raster and vector files are already on disk and still useful.

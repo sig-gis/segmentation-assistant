@@ -455,6 +455,9 @@ async def segment_tiled(body: TiledSegmentRequest, request: Request) -> JobCreat
             "tile_size": tile_size,
             "overlap": overlap,
             "exemplars": [{"box": list(e.box), "positive": e.positive} for e in exemplars],
+            # size limits (px²) the sweep applies, recorded so its card can show them
+            "min_size": tiling.get("min_size") or 0,
+            "max_size": tiling.get("max_size"),
         },
     )
     await state.repo.create_job(job)
@@ -479,15 +482,23 @@ async def discard_job_annotations(job_id: uuid.UUID, request: Request) -> Delete
     return DeletedResponse(deleted=deleted)
 
 
+def _job_response(job) -> JobStatusResponse:
+    return JobStatusResponse(
+        job_id=job.job_id, kind=job.kind, status=job.status, image_id=job.image_id,
+        params=job.params, result=job.result, error=job.error,
+        created_at=job.created_at, started_at=job.started_at, finished_at=job.finished_at,
+    )
+
+
+@router.get("/jobs", response_model=list[JobStatusResponse])
+async def list_jobs(image_id: uuid.UUID, request: Request) -> list[JobStatusResponse]:
+    """An image's sweeps, newest first, with their settings."""
+    return [_job_response(job) for job in await request.app.state.repo.list_jobs(image_id)]
+
+
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job(job_id: uuid.UUID, request: Request) -> JobStatusResponse:
     job = await request.app.state.repo.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return JobStatusResponse(
-        job_id=job.job_id,
-        kind=job.kind,
-        status=job.status,
-        result=job.result,
-        error=job.error,
-    )
+    return _job_response(job)

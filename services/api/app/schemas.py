@@ -227,11 +227,19 @@ class JobCreatedResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
+    """A background job (a sweep) with the settings it ran with (`params`:
+    text, tile_size, overlap, min_size, max_size, exemplars)."""
+
     job_id: UUID
     kind: str
     status: Literal["queued", "running", "succeeded", "failed"]
+    image_id: UUID | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] | None = None
     error: str | None = None
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------

@@ -93,7 +93,9 @@ class Backend(ABC):
         overlap: int,
         output_dir: str,
         exemplars: list["ExemplarBox"] | None = None,
+        min_size: float = 0,
+        max_size: float | None = None,
     ) -> dict[str, Any]:
-        """Full-scene tiled sweep, objects joined across tile edges; returns
+        """Full-scene tiled sweep (objects outside min/max px² dropped), objects joined across tile edges; returns
         {"vector_uri": GeoJSON with a score and tile pieces per object}.
         Long-running — only ever called from the async job runner."""

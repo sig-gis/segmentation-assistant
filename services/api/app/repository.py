@@ -120,6 +120,9 @@ class JobRecord:
     status: str = "queued"
     result: dict[str, Any] | None = None
     error: str | None = None
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 def as_multipolygon(geometry: dict[str, Any]) -> dict[str, Any]:
@@ -239,6 +242,10 @@ class Repository(ABC):
 
     @abstractmethod
     async def update_job(self, job_id: uuid.UUID, fields: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    async def list_jobs(self, image_id: uuid.UUID) -> list[JobRecord]:
+        """An image's jobs, newest first."""
 
     async def close(self) -> None:  # pragma: no cover - overridden where relevant
         return None
@@ -711,11 +718,8 @@ class PostgresRepository(Repository):
         )
         return record
 
-    async def get_job(self, job_id: uuid.UUID) -> JobRecord | None:
-        pool = self._require_pool()
-        row = await pool.fetchrow("SELECT * FROM jobs WHERE job_id = $1", job_id)
-        if row is None:
-            return None
+    @staticmethod
+    def _job_from_row(row) -> JobRecord:
         return JobRecord(
             job_id=row["job_id"],
             kind=row["kind"],
@@ -724,7 +728,22 @@ class PostgresRepository(Repository):
             status=row["status"],
             result=json.loads(row["result"]) if row["result"] else None,
             error=row["error"],
+            created_at=row["created_at"],
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
         )
+
+    async def get_job(self, job_id: uuid.UUID) -> JobRecord | None:
+        pool = self._require_pool()
+        row = await pool.fetchrow("SELECT * FROM jobs WHERE job_id = $1", job_id)
+        return None if row is None else self._job_from_row(row)
+
+    async def list_jobs(self, image_id: uuid.UUID) -> list[JobRecord]:
+        pool = self._require_pool()
+        rows = await pool.fetch(
+            "SELECT * FROM jobs WHERE image_id = $1 ORDER BY created_at DESC", image_id
+        )
+        return [self._job_from_row(row) for row in rows]
 
     async def update_job(self, job_id: uuid.UUID, fields: dict[str, Any]) -> None:
         pool = self._require_pool()

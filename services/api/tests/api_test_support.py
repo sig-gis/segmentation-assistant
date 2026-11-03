@@ -206,7 +206,9 @@ class InMemoryRepository(Repository):
         return changed
 
     async def create_job(self, record: JobRecord) -> JobRecord:
-        self.jobs[record.job_id] = copy.deepcopy(record)
+        stored = copy.deepcopy(record)
+        stored.created_at = stored.created_at or datetime.now(timezone.utc)
+        self.jobs[record.job_id] = stored
         return record
 
     async def get_job(self, job_id: uuid.UUID) -> JobRecord | None:
@@ -216,6 +218,15 @@ class InMemoryRepository(Repository):
         record = self.jobs[job_id]
         for key, value in fields.items():
             setattr(record, key, value)
+        # the database sets these timestamps itself
+        if fields.get("status") == "running":
+            record.started_at = datetime.now(timezone.utc)
+        elif fields.get("status") in ("succeeded", "failed"):
+            record.finished_at = datetime.now(timezone.utc)
+
+    async def list_jobs(self, image_id: uuid.UUID) -> list[JobRecord]:
+        jobs = [j for j in self.jobs.values() if j.image_id == image_id]
+        return copy.deepcopy(sorted(jobs, key=lambda j: j.created_at, reverse=True))
 
 
 class MockBackend(Backend):
@@ -281,7 +292,7 @@ class MockBackend(Backend):
         ]
 
     def run_tiled(self, image, text, tile_size, overlap, output_dir,
-                  exemplars=None) -> dict[str, Any]:
+                  exemplars=None, min_size=0, max_size=None) -> dict[str, Any]:
         self.tiled_calls.append(
             {
                 "image_id": image.image_id,
@@ -290,6 +301,8 @@ class MockBackend(Backend):
                 "overlap": overlap,
                 "output_dir": output_dir,
                 "exemplars": exemplars,
+                "min_size": min_size,
+                "max_size": max_size,
             }
         )
         if self.fail_tiled is not None:

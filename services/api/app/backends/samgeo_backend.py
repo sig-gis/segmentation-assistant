@@ -299,11 +299,14 @@ class SamGeoBackend(Backend):
         overlap: int,
         output_dir: str,
         exemplars: list["ExemplarBox"] | None = None,
+        min_size: float = 0,
+        max_size: float | None = None,
     ) -> dict[str, Any]:
         """Sweep the whole image tile by tile (app/sweep.py). Blocks until done.
 
         `tile_size` and `overlap` are in pixels; `exemplars` (pixel boxes) are
-        used in the tile that holds them. Writes masks.geojson into
+        used in the tile that holds them; objects outside `min_size` /
+        `max_size` (px², after joining) are dropped. Writes masks.geojson into
         `output_dir`: one feature per object, joined across tile edges, with
         its `score` and the tile `pieces` it came from. Returns its path as
         `vector_uri`. Raises RuntimeError if the model is not loaded."""
@@ -339,8 +342,8 @@ class SamGeoBackend(Backend):
                 image.crs if image.kind == "geotiff" else None,
                 text, tile_size, overlap, predict,
                 exemplars=exemplars,
-                min_size=self._settings.tiling.get("min_size") or 0,
-                max_size=self._settings.tiling.get("max_size"),
+                min_size=min_size,
+                max_size=max_size,
             )
         with open(vector_path, "w") as f:
             json.dump({"type": "FeatureCollection", "features": [
