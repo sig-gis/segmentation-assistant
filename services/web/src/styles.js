@@ -1,6 +1,7 @@
 // Map styles.
 //   saved outlines   colored by label
-//   suggestions      dashed yellow (unreviewed model output)
+//   suggestions      dashed yellow (unreviewed model output), or dashed in
+//                    their sweep's color; thicker when their sweep is selected
 //   draft            the outline being edited: blue edges, white corner dots
 //   areas            dashed rectangles colored by review status
 //   tiles            dashed white on black (no outline state uses it), with size
@@ -25,13 +26,14 @@ function labelText(text) {
   });
 }
 
-export function savedStyle(feature, showLabels) {
+export function savedStyle(feature, showLabels, selectedSweep = null) {
   const label = feature.get("label");
-  const key = `saved:${label}:${showLabels}`;
+  const bold = Boolean(selectedSweep) && feature.get("job_id") === selectedSweep;
+  const key = `saved:${label}:${showLabels}:${bold}`;
   if (!cache.has(key)) {
     const color = labelColor(label);
     cache.set(key, new Style({
-      stroke: new Stroke({ color, width: 2 }),
+      stroke: new Stroke({ color, width: bold ? 4 : 2 }),
       fill: new Fill({ color: `${color}22` }),
       text: showLabels ? labelText(label) : undefined,
     }));
@@ -39,16 +41,26 @@ export function savedStyle(feature, showLabels) {
   return cache.get(key);
 }
 
-const SUGGESTION = new Style({
-  stroke: new Stroke({ color: "#f5b700", width: 2, lineDash: [6, 4] }),
-  fill: new Fill({ color: "#f5b70014" }),
-});
+const SUGGESTION_COLOR = "#f5b700";
 
-export function suggestionStyle(feature, selectedId) {
-  if (feature.getId() !== selectedId) return SUGGESTION;
+// sweep: { colorOf(jobId) -> color, selected: jobId or null }
+export function suggestionStyle(feature, selectedId, sweep = {}) {
+  const jobId = feature.get("job_id");
+  const color = (jobId && sweep.colorOf?.(jobId)) || SUGGESTION_COLOR;
+  if (feature.getId() !== selectedId) {
+    const bold = Boolean(jobId) && jobId === sweep.selected;
+    const key = `suggestion:${color}:${bold}`;
+    if (!cache.has(key)) {
+      cache.set(key, new Style({
+        stroke: new Stroke({ color, width: bold ? 3.5 : 2, lineDash: [6, 4] }),
+        fill: new Fill({ color: `${color}${bold ? "33" : "14"}` }),
+      }));
+    }
+    return cache.get(key);
+  }
   return new Style({
-    stroke: new Stroke({ color: "#f5b700", width: 4 }),
-    fill: new Fill({ color: "#f5b70033" }),
+    stroke: new Stroke({ color, width: 4 }),
+    fill: new Fill({ color: `${color}33` }),
     text: labelText(
       [feature.get("label"), feature.get("score") == null ? null : feature.get("score").toFixed(2)]
         .filter(Boolean).join(" · ")

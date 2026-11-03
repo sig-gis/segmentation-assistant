@@ -1,6 +1,6 @@
 // Top-level app: image list, annotations and draft state, map tool modes
 // (1-5), side tabs, keyboard shortcuts, and panel settings kept in
-// localStorage (visibility, widths, folds, theme, sweep:<imageId>).
+// localStorage (visibility, widths, folds, theme, sweep:<imageId>, sweepColors).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "./api.js";
@@ -13,7 +13,8 @@ import { imageFrame } from "./frame.js";
 import { sizeText } from "./imageInfo.js";
 import { tileBox } from "./tileBox.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
-import { nextId, reviewQueue, sweepsIn } from "./review.js";
+import { nextId, reviewQueue, sweepCards } from "./review.js";
+import { sweepColor } from "./sweepColors.js";
 import AreasPanel from "./components/AreasPanel.jsx";
 import CompletePanel from "./components/CompletePanel.jsx";
 import Fold from "./components/Fold.jsx";
@@ -105,6 +106,10 @@ export default function App() {
   });
   const [focus, setFocus] = useState(null);
   const [job, setJob] = useState(null);
+  // the image's sweeps (API list), colors the user picked, the selected sweep
+  const [jobs, setJobs] = useState([]);
+  const [sweepColors, setSweepColors] = useState(() => stored("sweepColors", {}));
+  const [selectedSweep, setSelectedSweep] = useState(null);
   // sweep tile settings (null until the API's defaults arrive) and their tiles
   const [tiling, setTiling] = useState({ size: null, overlap: null });
   const [tileGrid, setTileGrid] = useState(null);
@@ -112,6 +117,7 @@ export default function App() {
   useEffect(() => store("visibility", visibility), [visibility]);
   useEffect(() => store("widths", widths), [widths]);
   useEffect(() => store("folds", folds), [folds]);
+  useEffect(() => store("sweepColors", sweepColors), [sweepColors]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     store("theme", theme);
@@ -132,7 +138,9 @@ export default function App() {
   const shownLayers = useMemo(
     () => visibleFeatures(
       annotations,
-      { ...visibility, suggestions: visibility.suggestions || tab === "suggestions" },
+      { ...visibility,
+        // suggestions show while reviewing them or their sweeps
+        suggestions: visibility.suggestions || tab === "suggestions" || tab === "sweep" },
       [draft?.annotationId, draft?.replaces].filter(Boolean)
     ),
     [annotations, visibility, tab, draft?.annotationId, draft?.replaces]
@@ -141,7 +149,12 @@ export default function App() {
     () => reviewQueue(annotations, filters).filter((id) => id !== draft?.annotationId),
     [annotations, filters, draft?.annotationId]
   );
-  const sweeps = useMemo(() => sweepsIn(annotations), [annotations]);
+  // the polled sweep (`job`) is fresher than the list while it runs
+  const sweeps = useMemo(
+    () => sweepCards(jobs.map((j) => (j.job_id === job?.job_id ? { ...j, ...job } : j)), annotations),
+    [jobs, job, annotations]
+  );
+  const sweepColorOf = useCallback((jobId) => sweepColor(jobId, sweepColors), [sweepColors]);
 
   // the tiles a sweep would use, refetched (after typing stops) when the
   // image or tile settings change. `tileGrid.key` says which image and
@@ -238,6 +251,7 @@ export default function App() {
     return Promise.all([
       shared,
       api.annotationsGeojson(imageId).then(setAnnotations),
+      api.listJobs(imageId).then(setJobs),
       api.listAreas({ imageId }).then(setAreas),
       api.imageLabels(imageId).then(setImageLabels),
     ]).catch(report);
@@ -635,6 +649,7 @@ export default function App() {
       try {
         const latest = await api.getJob(job.job_id);
         setJob(latest);
+        if (latest.status === "failed") await refresh();
         if (latest.status === "succeeded") {
           await refresh();
           setMessage(`Sweep finished: ${latest.result?.annotation_count ?? 0} suggestions to review.`);
@@ -653,7 +668,26 @@ export default function App() {
     if (!created) return;
     store(`sweep:${imageId}`, created.job_id);
     setJob({ job_id: created.job_id, status: created.status });
-  }, [run, imageId, label]);
+    api.listJobs(imageId).then(setJobs).catch(report);
+  }, [run, imageId, label, report]);
+
+  // click a sweep card: select its outlines (drawn bolder) and zoom to them;
+  // click again to clear
+  useEffect(() => setSelectedSweep(null), [imageId]);
+  const selectSweep = useCallback((jobId) => {
+    if (selectedSweep === jobId) {
+      setSelectedSweep(null);
+      return;
+    }
+    setSelectedSweep(jobId);
+    const features = (annotations?.features ?? []).filter((f) => f.properties.job_id === jobId);
+    if (!features.length || !frame) return;
+    const extent = extentOf({
+      type: "MultiPolygon",
+      coordinates: features.flatMap((f) => frame.toMap(asMulti(f.geometry)).coordinates),
+    });
+    setFocus({ extent, imageId, nonce: Date.now() });
+  }, [selectedSweep, annotations, frame, imageId]);
 
   const reviewSweep = useCallback((jobId) => {
     const next = { origin: "sweep", minScore: 0, jobId };
@@ -847,6 +881,8 @@ export default function App() {
             draftTool={draftTool}
             mode={mode}
             selectedSuggestionId={suggestionId}
+            sweepColorOf={sweepColorOf}
+            selectedSweep={selectedSweep}
             focus={focus}
             onPick={openOutline}
             onBox={onBox}
@@ -921,6 +957,9 @@ export default function App() {
                           tileCount={tileCount}
                           exampleId={exampleId}
                           onStart={startSweep} sweeps={sweeps} onReview={reviewSweep}
+                          colorOf={sweepColorOf}
+                          onColor={(jobId, color) => setSweepColors((c) => ({ ...c, [jobId]: color }))}
+                          selectedSweep={selectedSweep} onSelectSweep={selectSweep}
                           onBulk={bulkOutlines} />
             )}
             {tab === "review" && (

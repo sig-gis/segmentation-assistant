@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextId, origin, reviewQueue, sweepsIn } from "./review.js";
+import { nextId, origin, reviewQueue, sweepCards } from "./review.js";
 
 const feature = (id, props) => ({ id, properties: { status: "proposed", ...props } });
 const fc = {
@@ -51,10 +51,20 @@ describe("sweeps", () => {
   it("filters the queue to one sweep", () => {
     expect(reviewQueue(fc, { jobId: "j1" })).toEqual(["sweep"]);
   });
-  it("lists sweeps with counts", () => {
-    expect(sweepsIn(fc)).toEqual([
-      { jobId: "j1", label: undefined, proposed: 1, accepted: 0, rejected: 0,
+  it("lists every sweep, newest first as the API gives them, with outline counts", () => {
+    const jobs = [
+      { job_id: "j2", status: "running", params: { text: "water" } },
+      { job_id: "j1", status: "succeeded", params: { text: "field" } },
+    ];
+    expect(sweepCards(jobs, fc)).toEqual([
+      { jobId: "j2", label: "water", job: jobs[0], proposed: 0, accepted: 0, rejected: 0,
+        ids: { proposed: [], accepted: [], rejected: [] } },
+      { jobId: "j1", label: "field", job: jobs[1], proposed: 1, accepted: 0, rejected: 0,
         ids: { proposed: ["sweep"], accepted: [], rejected: [] } },
     ]);
+  });
+  it("keeps a sweep whose outlines were all deleted", () => {
+    const jobs = [{ job_id: "gone", status: "succeeded", params: { text: "field" } }];
+    expect(sweepCards(jobs, fc)[0].proposed).toBe(0);
   });
 });

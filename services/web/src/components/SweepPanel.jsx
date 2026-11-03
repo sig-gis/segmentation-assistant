@@ -2,7 +2,7 @@
 // image, tile by tile, without shrinking it. Results join the review queue.
 import { useState } from "react";
 
-import { pixelSizeText } from "../imageInfo.js";
+import { areaText, lengthText, metresPerPixel, pixelSizeText } from "../imageInfo.js";
 
 // an emptied number box stays empty instead of turning into 0
 const numberOrEmpty = (value) => (value === "" ? "" : Number(value));
@@ -15,25 +15,65 @@ const DELETE_WHICH = {
   all: "all",
 };
 
-function SweepItem({ sweep, onReview, onBulk }) {
+// "1008 px (10.08 km)", or "1008 px" when the image has no size in metres
+function pixelsAndMetres(px, image) {
+  return metresPerPixel(image) ? `${px} px (${lengthText(px, image)})` : `${px} px`;
+}
+
+// "No size limits", "At least 5000 m²", "500 m² to 2 km²"; null for sweeps
+// made before limits were recorded
+function sizeLimits(params, image) {
+  if (!("min_size" in params)) return null;
+  const { min_size: min, max_size: max } = params;
+  if (!min && max == null) return "No size limits";
+  if (!min) return `At most ${areaText(max, image)}`;
+  if (max == null) return `At least ${areaText(min, image)}`;
+  return `${areaText(min, image)} to ${areaText(max, image)}`;
+}
+
+// One sweep: its settings and outlines. Clicking the card selects its
+// outlines on the map; the color swatch recolors them (this browser only).
+function SweepItem({ sweep, image, color, onColor, selected, onSelect, onReview, onBulk }) {
   const [which, setWhich] = useState("proposed");
+  const { job } = sweep;
+  const params = job.params ?? {};
+  const limits = sizeLimits(params, image);
+  const when = job.created_at
+    ? new Date(job.created_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+    : null;
   const doomed = which === "all"
     ? [...sweep.ids.proposed, ...sweep.ids.accepted, ...sweep.ids.rejected]
     : sweep.ids[which];
   return (
-    <li className="box">
-      <div><b>{sweep.label}</b> <span className="muted small">{sweep.jobId.slice(0, 8)}</span></div>
+    <li className={`box sweep-card${selected ? " selected" : ""}`} style={{ borderLeftColor: color }}
+        onClick={onSelect} title="Select this sweep's outlines on the map (click again to clear)">
+      <div className="row tight">
+        <input type="color" value={color} title="Color of this sweep's outlines"
+               onClick={(e) => e.stopPropagation()} onChange={(e) => onColor(e.target.value)} />
+        <b>{sweep.label}</b>
+        <span className="muted small">{when ?? sweep.jobId.slice(0, 8)}</span>
+      </div>
+      {params.tile_size && (
+        <div className="small muted">
+          Tiles {pixelsAndMetres(params.tile_size, image)} · overlap {pixelsAndMetres(params.overlap, image)}
+        </div>
+      )}
+      {limits && <div className="small muted">{limits}</div>}
+      {params.exemplars?.length > 0 && <div className="small muted">Guided by an example outline</div>}
+      {job.status !== "succeeded" && (
+        <div className="small"><b>{job.status}</b>{job.error && ` · ${job.error}`}</div>
+      )}
       <div className="small muted">
         {sweep.proposed} to review · {sweep.accepted} accepted · {sweep.rejected} rejected
       </div>
-      <div className="row">
+      <div className="row" onClick={(e) => e.stopPropagation()}>
         <button onClick={() => onReview(sweep.jobId)} disabled={!sweep.proposed}>Review</button>
         <button onClick={() => onBulk(sweep.ids.proposed, "accept")} disabled={!sweep.proposed}
                 title={`Accept every unreviewed outline as “${sweep.label}”`}>Accept all</button>
         <button onClick={() => onBulk(sweep.ids.proposed, "reject")} disabled={!sweep.proposed}
                 title="Reject every unreviewed outline (kept as training examples)">Reject all</button>
       </div>
-      <div className="row tight">
+      <div className="row tight" onClick={(e) => e.stopPropagation()}>
         <button className="danger" onClick={() => onBulk(doomed, "delete")} disabled={!doomed.length}
                 title="Delete these outlines for good">
           Delete {doomed.length}
@@ -59,6 +99,10 @@ export default function SweepPanel({
   exampleId,
   onStart,
   sweeps,
+  colorOf,
+  onColor,
+  selectedSweep,
+  onSelectSweep,
   onReview,
   onBulk,
 }) {
@@ -137,7 +181,10 @@ export default function SweepPanel({
       ) : (
         <ul className="plain">
           {sweeps.map((s) => (
-            <SweepItem key={s.jobId} sweep={s} onReview={onReview} onBulk={onBulk} />
+            <SweepItem key={s.jobId} sweep={s} image={image} color={colorOf(s.jobId)}
+                       onColor={(color) => onColor(s.jobId, color)}
+                       selected={s.jobId === selectedSweep} onSelect={() => onSelectSweep(s.jobId)}
+                       onReview={onReview} onBulk={onBulk} />
           ))}
         </ul>
       )}

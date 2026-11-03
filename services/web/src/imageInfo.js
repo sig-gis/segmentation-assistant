@@ -40,11 +40,17 @@ export function sizeText(width, height, image) {
   const sides = (unit, scale) =>
     width === height ? `${short(width * scale)} ${unit}`
       : `${short(width * scale)} × ${short(height * scale)} ${unit}`;
-  if (!m) {
-    return `${sides("px", 1)}, ${(width * height).toLocaleString("en-US")} px²`;
-  }
+  if (!m) return `${sides("px", 1)}, ${areaText(width * height, image)}`;
   const length = Math.max(width, height) * m;
-  const area = width * height * m * m;
   const side = length >= 1000 ? sides("km", m / 1000) : sides("m", m);
-  return `${side}, ${area >= 1e6 ? `${short(area / 1e6)} km²` : `${short(area)} m²`}`;
+  return `${side}, ${areaText(width * height, image)}`;
+}
+
+// "5000 m²" or "101.6 km²" for an area in pixels²; px² when the image has
+// no size in metres.
+export function areaText(px2, image) {
+  const m = metresPerPixel(image);
+  if (!m) return `${px2.toLocaleString("en-US")} px²`;
+  const area = px2 * m * m;
+  return area >= 1e6 ? `${short(area / 1e6)} km²` : `${short(area)} m²`;
 }

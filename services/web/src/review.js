@@ -40,19 +40,20 @@ export function nextId(queue, currentId, step = 1) {
   return queue[(index + step + queue.length) % queue.length];
 }
 
-// Sweeps that produced outlines on this image, with their outline ids by
-// status (`ids.proposed`, ...) and counts.
-export function sweepsIn(collection) {
-  const sweeps = new Map();
+// One card per sweep in `jobs` (the API's list, newest first), with its
+// outline ids by status (`ids.proposed`, ...) and counts. Sweeps whose
+// outlines were all deleted still get a card.
+export function sweepCards(jobs, collection) {
+  const cards = new Map(jobs.map((job) => [job.job_id, {
+    jobId: job.job_id, label: job.params?.text, job,
+    proposed: 0, accepted: 0, rejected: 0,
+    ids: { proposed: [], accepted: [], rejected: [] },
+  }]));
   for (const f of collection?.features ?? []) {
-    const id = f.properties.job_id;
-    if (!id) continue;
-    const entry = sweeps.get(id) ?? { jobId: id, label: f.properties.label,
-                                      proposed: 0, accepted: 0, rejected: 0,
-                                      ids: { proposed: [], accepted: [], rejected: [] } };
-    entry[f.properties.status] += 1;
-    entry.ids[f.properties.status].push(f.id);
-    sweeps.set(id, entry);
+    const card = cards.get(f.properties.job_id);
+    if (!card) continue;
+    card[f.properties.status] += 1;
+    card.ids[f.properties.status].push(f.id);
   }
-  return [...sweeps.values()];
+  return [...cards.values()];
 }

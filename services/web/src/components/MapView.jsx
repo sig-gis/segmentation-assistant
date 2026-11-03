@@ -73,6 +73,8 @@ export default function MapView({
   showCorners = true,
   mode = "pan",
   selectedSuggestionId = null,
+  sweepColorOf = null,
+  selectedSweep = null,
   focus = null,
   onPick,
   onBox,
@@ -207,12 +209,13 @@ export default function MapView({
   }, [saved, suggestions, frame]);
 
   useEffect(() => {
-    layers.current.saved.setStyle((f) => savedStyle(f, showLabels));
-  }, [showLabels]);
+    layers.current.saved.setStyle((f) => savedStyle(f, showLabels, selectedSweep));
+  }, [showLabels, selectedSweep]);
 
   useEffect(() => {
-    layers.current.suggestions.setStyle((f) => suggestionStyle(f, selectedSuggestionId));
-  }, [selectedSuggestionId]);
+    const sweep = { colorOf: sweepColorOf, selected: selectedSweep };
+    layers.current.suggestions.setStyle((f) => suggestionStyle(f, selectedSuggestionId, sweep));
+  }, [selectedSuggestionId, sweepColorOf, selectedSweep]);
 
   // labeled areas
   useEffect(() => {

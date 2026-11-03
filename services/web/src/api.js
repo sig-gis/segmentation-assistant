@@ -92,6 +92,8 @@ export const api = {
       },
     }),
   getJob: (jobId) => request(`/segment/jobs/${jobId}`),
+  // an image's sweeps, newest first, with their settings
+  listJobs: (imageId) => request("/segment/jobs", { query: { image_id: imageId } }),
 
   listAreas: ({ imageId, status } = {}) =>
     request("/areas", { query: { image_id: imageId, status } }),
