@@ -1,7 +1,7 @@
 // Top-level app: image list, annotations and draft state, map tool modes
 // (1-5), side tabs, keyboard shortcuts, and panel settings kept in
 // localStorage (visibility, widths, folds, theme, sweep:<imageId>).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "./api.js";
 import {
@@ -143,21 +143,34 @@ export default function App() {
   const sweeps = useMemo(() => sweepsIn(annotations), [annotations]);
 
   // the tiles a sweep would use, refetched (after typing stops) when the
-  // image or tile settings change; invalid settings show no tiles
+  // image or tile settings change. `tileGrid.key` says which image and
+  // settings the grid is for; invalid settings give a grid with no tiles.
+  const tilingKey = `${imageId}|${tiling.size}|${tiling.overlap}`;
+  const loadedKey = useRef(null);
   useEffect(() => {
-    if (!imageId) return;
+    if (!imageId || loadedKey.current === tilingKey) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       api.imageTiles(imageId, tiling.size, tiling.overlap)
         .then((grid) => {
           if (cancelled) return;
-          setTileGrid(grid);
+          // the first answer brings the API's defaults; keying the grid by
+          // them means filling in the form does not fetch it again
+          const key = `${imageId}|${grid.tile_size}|${grid.overlap}`;
+          loadedKey.current = key;
+          setTileGrid({ ...grid, key });
           setTiling((t) => (t.size == null ? { size: grid.tile_size, overlap: grid.overlap } : t));
         })
-        .catch(() => !cancelled && setTileGrid(null));
+        .catch(() => {
+          if (cancelled) return;
+          loadedKey.current = tilingKey;
+          setTileGrid({ key: tilingKey, tiles: [] });
+        });
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [imageId, tiling.size, tiling.overlap]);
+  }, [imageId, tilingKey, tiling.size, tiling.overlap]);
+  // null while the grid for the current settings is loading
+  const tileCount = tileGrid?.key === tilingKey ? tileGrid.tiles.length : null;
   const tileFeatures = useMemo(() => (tileGrid?.tiles ?? []).map((t) => {
     const [x0, y0, x1, y1] = t.pixel_box;
     return { geometry: t.geometry, size: sizeText(x1 - x0, y1 - y0, image) };
@@ -883,7 +896,7 @@ export default function App() {
             {tab === "sweep" && (
               <SweepPanel image={image} label={label} modelReady={modelReady} job={job}
                           tiling={tiling} onTiling={setTiling}
-                          tileCount={tileGrid?.tiles.length ?? 0}
+                          tileCount={tileCount}
                           exampleId={exampleId}
                           onStart={startSweep} sweeps={sweeps} onReview={reviewSweep}
                           onBulk={bulkOutlines} />

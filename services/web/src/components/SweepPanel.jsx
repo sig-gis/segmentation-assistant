@@ -106,7 +106,9 @@ export default function SweepPanel({
                    onChange={(e) => onTiling({ ...tiling, overlap: numberOrEmpty(e.target.value) })} />
           </label>
         </div>
-        {tileCount ? (
+        {tileCount === null ? (
+          <p className="muted small">…</p>
+        ) : tileCount ? (
           <p className="muted small">
             {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tiles)
           </p>

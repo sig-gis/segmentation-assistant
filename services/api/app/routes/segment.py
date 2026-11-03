@@ -273,7 +273,9 @@ async def segment_interactive(
     )
 
 
-async def _resolve_exemplars(request: Request, body: ConceptSegmentRequest, image):
+async def _resolve_exemplars(
+    request: Request, body: ConceptSegmentRequest | TiledSegmentRequest, image
+):
     """Turn ExemplarRef entries (annotation ids / raw boxes) into pixel-space
     ExemplarBox values for the backend; also picks up a fallback label from
     the first referenced annotation."""

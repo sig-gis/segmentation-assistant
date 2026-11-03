@@ -1,4 +1,4 @@
-from shapely.geometry import box
+from shapely.geometry import Polygon, box
 
 from app.seams import Piece, join_across_seams
 
@@ -49,3 +49,10 @@ def test_size_limits_apply_to_joined_objects():
     joined = join_across_seams(pieces, TILES, min_size=100, max_size=6000)
     assert [j.geometry.area for j in joined] == [5000]
     assert join_across_seams(pieces, TILES, max_size=4000)[0].geometry.area == 25
+
+
+def test_an_invalid_piece_does_not_fail_the_join():
+    bowtie = Polygon([(50, 10), (100, 60), (100, 10), (50, 60)])  # self-intersecting
+    pieces = [Piece(0, bowtie, 0.7), Piece(1, box(80, 10, 150, 60), 0.9)]
+    joined = join_across_seams(pieces, TILES)
+    assert joined and all(j.geometry.is_valid for j in joined)

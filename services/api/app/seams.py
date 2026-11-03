@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from shapely import make_valid
 from shapely.geometry import box as make_box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
@@ -50,7 +51,10 @@ def _same_object(a: Piece, b: Piece, tiles, min_iou: float) -> bool:
 
 def join_across_seams(pieces: list[Piece], tiles, min_iou: float = 0.5,
                       min_size: float = 0, max_size: float | None = None) -> list[Joined]:
-    """Group pieces into objects and drop objects outside min/max size (px²)."""
+    """Group pieces into objects and drop objects outside min/max size (px²).
+    Invalid pieces are repaired first, so one bad mask cannot fail a sweep."""
+    pieces = [p if p.geometry.is_valid else Piece(p.tile, make_valid(p.geometry), p.score)
+              for p in pieces]
     parent = list(range(len(pieces)))
 
     def find(i):

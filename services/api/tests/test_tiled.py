@@ -99,6 +99,7 @@ def test_sweep_results_are_persisted_as_annotations(client, repo, backend, geoti
         # each object keeps its score and how many tile pieces it was joined from
         assert annotation.score is not None
         assert annotation.prompt["pieces"] >= 1
+        assert annotation.prompt["pieces_uri"].endswith(f"{body['job_id']}/masks.geojson")
         assert annotation.prompt["tile_size"] == 1024
 
 
@@ -194,3 +195,13 @@ def test_sweep_with_a_visual_example(client, repo, backend, png_image):
     stored = [a for a in repo.annotations.values()
               if (a.prompt or {}).get("job_id") == response.json()["job_id"]]
     assert stored and stored[0].prompt["type"] == "text+exemplar"
+
+
+def test_overlap_must_be_smaller_than_the_tile(client, repo, png_image):
+    response = client.post(
+        "/segment/tiled",
+        json={"image_id": png_image["image_id"], "text": "field",
+              "tile_size": 128, "overlap": 128},
+    )
+    assert response.status_code == 422
+    assert repo.jobs == {}

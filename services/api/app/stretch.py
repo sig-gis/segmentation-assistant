@@ -16,8 +16,9 @@ import numpy as np
 _SAMPLE_SIZE = 1024
 
 
-def _bands(src) -> list[int]:
-    return [1, 2, 3] if src.count >= 3 else [1, 1, 1]
+def bands_for(count: int) -> list[int]:
+    """Bands used as RGB, as samgeo picks them (1-based)."""
+    return {1: [1, 1, 1], 2: [1, 2, 1]}.get(count, [1, 2, 3])
 
 
 def stretch_limits(src, bands: list[int]) -> list[tuple[float, float]]:
@@ -46,7 +47,8 @@ def apply_limits(data, limits) -> np.ndarray:
     ])
 
 
-def _open(source_uri: str):
+def open_raster(source_uri: str):
+    """Open a GeoTIFF or PNG with rasterio (use as a context manager)."""
     import rasterio
 
     with warnings.catch_warnings():  # PNGs have no georeferencing, by design
@@ -54,17 +56,15 @@ def _open(source_uri: str):
         return rasterio.open(source_uri)
 
 
-def image_limits(source_uri: str) -> list[tuple[float, float]] | None:
-    """Stretch limits for the whole image; None for 8-bit images."""
-    with _open(source_uri) as src:
-        return None if src.dtypes[0] == "uint8" else stretch_limits(src, _bands(src))
+def image_limits(src) -> list[tuple[float, float]] | None:
+    """Stretch limits for the whole of an open image; None for 8-bit images."""
+    return None if src.dtypes[0] == "uint8" else stretch_limits(src, bands_for(src.count))
 
 
-def read_rgb(source_uri: str, box: tuple[int, int, int, int], limits) -> np.ndarray:
-    """One pixel box (x0, y0, x1, y1) as rows x cols x 3 uint8."""
+def read_rgb(src, box: tuple[int, int, int, int], limits) -> np.ndarray:
+    """One pixel box (x0, y0, x1, y1) of an open image as rows x cols x 3 uint8."""
     from rasterio.windows import Window
 
     x0, y0, x1, y1 = box
-    with _open(source_uri) as src:
-        data = src.read(_bands(src), window=Window(x0, y0, x1 - x0, y1 - y0), masked=True)
+    data = src.read(bands_for(src.count), window=Window(x0, y0, x1 - x0, y1 - y0), masked=True)
     return np.clip(apply_limits(data, limits), 0, 255).astype(np.uint8).transpose(1, 2, 0)

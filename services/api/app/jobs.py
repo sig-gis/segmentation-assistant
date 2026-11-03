@@ -131,6 +131,8 @@ class JobRunner:
             "tile_size": params.get("tile_size"),
             "overlap": params.get("overlap"),
             "exemplars": params.get("exemplars") or [],
+            # the tile pieces each outline was joined from, to check a join
+            "pieces_uri": vector_uri,
             "backend": self._settings.model["backend"],
             "model": self._settings.model["model_id"],
             "cleanup": cleanup_record(False, "off"),

@@ -15,7 +15,9 @@ model:
 tiling:
   tile_size: 1008
   overlap: 126
-  min_size: 0        # drop masks smaller than this (pixels); samgeo passthrough
+  # Sweeps drop objects outside these areas (px²), measured after pieces cut
+  # by tile edges are joined. null = no limit.
+  min_size: 0
   max_size: null
 
 interactive:

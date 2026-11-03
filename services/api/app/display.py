@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .stretch import apply_limits, stretch_limits
+from .stretch import apply_limits, bands_for, stretch_limits
 
 _STRIP_ROWS = 1024
 
@@ -30,7 +30,7 @@ def build_display_cog(source_uri: str, out_path: Path) -> Path:
     tmp_path = out_path.with_name(out_path.stem + ".tmp.tif")
 
     with rasterio.open(source_uri) as src:
-        bands = [1, 2, 3] if src.count >= 3 else [1, 1, 1]
+        bands = bands_for(src.count)
         # 8-bit sources keep their colors; anything else is contrast-stretched
         limits = None if src.dtypes[0] == "uint8" else stretch_limits(src, bands)
         profile = {

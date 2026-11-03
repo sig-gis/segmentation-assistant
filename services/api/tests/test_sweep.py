@@ -40,7 +40,7 @@ def test_geotiff_results_are_in_the_image_crs(geotiff_path):
         transform, crs = src.transform, src.crs.to_string()
     features = run_sweep(str(geotiff_path), crs=crs, text="field", tile_size=64, overlap=0,
                          predict=fake_predict([], field=(0, 0, 10, 10)))
-    x0, y0 = transform * (0, 0)
+    x0, y0 = transform @ (0, 0)
     bounds = shape(features[0]["geometry"]).bounds
     assert (bounds[0], bounds[3]) == (x0, y0)
 
