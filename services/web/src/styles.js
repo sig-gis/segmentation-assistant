@@ -4,7 +4,7 @@
 //   draft            the outline being edited: blue edges, white corner dots
 //   areas            dashed rectangles colored by review status
 //   tiles            dashed white on black (no outline state uses it), with size
-//   tile box         white edge, lighter band for the overlap, size label
+//   tile box         solid white edge on black, size label
 import MultiPoint from "ol/geom/MultiPoint.js";
 import Point from "ol/geom/Point.js";
 import Polygon from "ol/geom/Polygon.js";
@@ -139,21 +139,15 @@ export function tileStyle(feature) {
 }
 
 const TILE_EDGE = [
-  new Style({ stroke: new Stroke({ color: "#000", width: 3.5 }) }),
-  new Style({ stroke: new Stroke({ color: "#fff", width: 2 }) }),
+  new Style({ stroke: new Stroke({ color: "#000", width: 4 }) }),
+  new Style({ stroke: new Stroke({ color: "#fff", width: 2.5 }) }),
 ];
 
-// parts: "band" (overlap strip), "inner" (edge of the part no other tile
-// covers) and "label"
+// parts: "edge" (the tile outline) and "label"
 export function tileBoxStyle(feature) {
-  switch (feature.get("part")) {
-    case "band":
-      return [new Style({ fill: new Fill({ color: "rgba(255, 255, 255, 0.28)" }) }), ...TILE_EDGE];
-    case "inner":
-      return new Style({ stroke: new Stroke({ color: "#fff", width: 1, lineDash: [6, 4] }) });
-    default:
-      return new Style({ text: labelText(feature.get("text")) });
-  }
+  return feature.get("part") === "edge"
+    ? TILE_EDGE
+    : new Style({ text: labelText(feature.get("text")) });
 }
 
 export const AREA_COLORS = {

@@ -28,7 +28,7 @@ import View from "ol/View.js";
 import GeoJSON from "ol/format/GeoJSON.js";
 import LineString from "ol/geom/LineString.js";
 import Point from "ol/geom/Point.js";
-import Polygon, { fromExtent } from "ol/geom/Polygon.js";
+import { fromExtent } from "ol/geom/Polygon.js";
 import Draw, { createBox } from "ol/interaction/Draw.js";
 import Modify from "ol/interaction/Modify.js";
 import Translate from "ol/interaction/Translate.js";
@@ -233,26 +233,23 @@ export default function MapView({
     source.addFeatures(tiles.map((t) => featureFrom(frame.toMap(t.geometry), null, { size: t.size })));
   }, [tiles, frame]);
 
-  // the sweep tile box: { outer, inner (extents or null), label }; in pan
-  // mode it can be dragged (all its parts move together)
+  // the sweep tile box: { extent, label }; in pan mode it can be dragged by
+  // its edge or label (inside it, dragging still pans the map)
   useEffect(() => {
     const map = mapRef.current;
     const source = sources.current.tileBox;
     source.clear();
     if (!map || !tileBox) return;
-    const outer = fromExtent(tileBox.outer);
-    const parts = [new Feature({ geometry: outer, part: "band" })];
-    if (tileBox.inner) {
-      const inner = fromExtent(tileBox.inner);
-      outer.appendLinearRing(inner.getLinearRing(0)); // the band is the ring between
-      parts.push(new Feature({ geometry: new LineString(inner.getCoordinates()[0]), part: "inner" }));
-    }
-    parts.push(new Feature({ geometry: new Point(getCenter(tileBox.outer)), part: "label",
-                             text: tileBox.label }));
+    const edge = new LineString(fromExtent(tileBox.extent).getCoordinates()[0]);
+    const parts = [
+      new Feature({ geometry: edge, part: "edge" }),
+      new Feature({ geometry: new Point(getCenter(tileBox.extent)), part: "label",
+                    text: tileBox.label }),
+    ];
     source.addFeatures(parts);
     if (mode !== "pan" || draft) return;
-    const translate = new Translate({ features: new Collection(parts), hitTolerance: 4 });
-    translate.on("translateend", () => onTileMove?.(getCenter(outer.getExtent())));
+    const translate = new Translate({ features: new Collection(parts), hitTolerance: 6 });
+    translate.on("translateend", () => onTileMove?.(getCenter(edge.getExtent())));
     map.addInteraction(translate);
     return () => map.removeInteraction(translate);
   }, [tileBox, mode, draft, onTileMove]);

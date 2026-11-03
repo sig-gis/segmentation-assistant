@@ -10,7 +10,7 @@ import {
 } from "./draft.js";
 import { combine } from "./shapes.js";
 import { imageFrame } from "./frame.js";
-import { lengthText, sizeText } from "./imageInfo.js";
+import { sizeText } from "./imageInfo.js";
 import { tileBox } from "./tileBox.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
 import { nextId, reviewQueue, sweepsIn } from "./review.js";
@@ -185,13 +185,12 @@ export default function App() {
   );
   const shownTile = useMemo(() => {
     const pixel = frame?.georeferenced ? (image?.pixel_size ?? 1) : 1;
-    const box = tileBox({ center: tileCenter, sizePx: tiling.size, overlapPx: tiling.overlap,
-                          pixel, extent: imageExtent });
-    if (!box) return null;
-    const [x0, y0, x1, y1] = box.outer;
-    const size = sizeText(Math.round((x1 - x0) / pixel), Math.round((y1 - y0) / pixel), image);
-    return { ...box, label: `${size} · overlap ${lengthText(tiling.overlap || 0, image)}` };
-  }, [frame, image, tileCenter, tiling.size, tiling.overlap, imageExtent]);
+    const extent = tileBox({ center: tileCenter, sizePx: tiling.size, pixel, extent: imageExtent });
+    if (!extent) return null;
+    const [x0, y0, x1, y1] = extent;
+    return { extent,
+             label: sizeText(Math.round((x1 - x0) / pixel), Math.round((y1 - y0) / pixel), image) };
+  }, [frame, image, tileCenter, tiling.size, imageExtent]);
   const tileFeatures = useMemo(() => (tileGrid?.tiles ?? []).map((t) => {
     const [x0, y0, x1, y1] = t.pixel_box;
     return { geometry: t.geometry, size: sizeText(x1 - x0, y1 - y0, image) };

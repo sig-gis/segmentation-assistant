@@ -3,7 +3,7 @@ const LAYERS = [
   ["saved", "Saved outlines", "Outlines you have saved"],
   ["suggestions", "Suggestions", "Unreviewed outlines from Find similar and sweeps"],
   ["areas", "Labeled areas", "Rectangles marked on the Review tab"],
-  ["tiles", "Sweep tile", "One sweep tile (Sweep tab settings) with its overlap; drag it with Pan / select"],
+  ["tiles", "Sweep tile", "One sweep tile at the Sweep tab's tile size; drag its edge or label with Pan / select"],
 ];
 
 export default function LayersPanel({ visibility, onChange, showLabels, onShowLabels,
