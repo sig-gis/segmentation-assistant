@@ -2,7 +2,10 @@
 // image, tile by tile, without shrinking it. Results join the review queue.
 import { useState } from "react";
 
-import { pixelSizeText, tileCount } from "../imageInfo.js";
+import { pixelSizeText } from "../imageInfo.js";
+
+// an emptied number box stays empty instead of turning into 0
+const numberOrEmpty = (value) => (value === "" ? "" : Number(value));
 
 // which of a sweep's outlines "Delete" removes
 const DELETE_WHICH = {
@@ -50,17 +53,17 @@ export default function SweepPanel({
   label,
   modelReady,
   job,
+  tiling,
+  onTiling,
+  tileCount,
   onStart,
   sweeps,
   onReview,
   onBulk,
 }) {
-  const [tileSize, setTileSize] = useState(1024);
-  const [overlap, setOverlap] = useState(128);
   const running = job && (job.status === "queued" || job.status === "running");
   const georeferenced = image.kind === "geotiff" && image.crs;
   const pixel = pixelSizeText(image);
-  const tiles = tileCount(image.width, image.height, tileSize, overlap);
 
   return (
     <section>
@@ -85,18 +88,25 @@ export default function SweepPanel({
             <div className="row">
               <label className="field inline">
                 Tile size
-                <input type="number" min="256" step="128" value={tileSize}
-                       onChange={(e) => setTileSize(Number(e.target.value))} />
+                <input type="number" min="64" value={tiling.size ?? ""}
+                       onChange={(e) => onTiling({ ...tiling, size: numberOrEmpty(e.target.value) })} />
               </label>
               <label className="field inline">
                 Overlap
-                <input type="number" min="0" step="32" value={overlap}
-                       onChange={(e) => setOverlap(Number(e.target.value))} />
+                <input type="number" min="0" value={tiling.overlap ?? ""}
+                       onChange={(e) => onTiling({ ...tiling, overlap: numberOrEmpty(e.target.value) })} />
               </label>
             </div>
-            {tiles && <p className="muted small">{tiles} tile{tiles === 1 ? "" : "s"}</p>}
-            <button className="primary" disabled={!modelReady || !label || running}
-                    onClick={() => onStart({ tileSize, overlap })}>
+            {tileCount ? (
+              <p className="muted small">
+                {tileCount} tile{tileCount === 1 ? "" : "s"} (Show on map → Sweep tiles)
+              </p>
+            ) : (
+              <p className="muted small">Overlap must be smaller than the tile size (at least 64).</p>
+            )}
+            <button className="primary"
+                    disabled={!modelReady || !label || running || !tileCount || tiling.size === "" || tiling.overlap === ""}
+                    onClick={() => onStart({ tileSize: tiling.size, overlap: tiling.overlap })}>
               {running ? "Sweep running…" : `Sweep for “${label}”`}
             </button>
           </>

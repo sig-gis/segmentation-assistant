@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pixelSizeText, tileCount } from "./imageInfo.js";
+import { metresPerPixel, pixelSizeText, sizeText } from "./imageInfo.js";
 
 describe("pixelSizeText", () => {
   it("reads metres from a UTM image", () => {
@@ -16,15 +16,26 @@ describe("pixelSizeText", () => {
   });
 });
 
-describe("tileCount", () => {
-  it("is one tile when the image fits", () => {
-    expect(tileCount(800, 600, 1024, 128)).toBe(1);
+const utm = { crs: "EPSG:32648", pixel_size: 10, proj4: "+proj=utm +zone=48 +units=m +no_defs" };
+
+describe("metresPerPixel", () => {
+  it("is the pixel size for images in metres", () => {
+    expect(metresPerPixel(utm)).toBe(10);
   });
-  it("counts overlapping tiles on each side", () => {
-    // 2000 px: tiles start every 896 px -> 3 across; 1000 px -> 1 down
-    expect(tileCount(2000, 1000, 1024, 128)).toBe(3);
+  it("is null for degrees and PNGs", () => {
+    expect(metresPerPixel({ crs: "EPSG:4326", pixel_size: 0.0001, proj4: "+proj=longlat" })).toBeNull();
+    expect(metresPerPixel({ crs: null, pixel_size: 1 })).toBeNull();
   });
-  it("is unknown when overlap is not smaller than the tile", () => {
-    expect(tileCount(2000, 2000, 256, 256)).toBeNull();
+});
+
+describe("sizeText", () => {
+  it("gives side and area in km for a large square in metres", () => {
+    expect(sizeText(1008, 1008, utm)).toBe("10.08 km, 101.6 km²");
+  });
+  it("uses m and m² for small sizes and shows both sides when not square", () => {
+    expect(sizeText(5, 3, utm)).toBe("50 × 30 m, 1500 m²");
+  });
+  it("falls back to pixels", () => {
+    expect(sizeText(1008, 1008, { crs: null })).toBe("1008 px, 1,016,064 px²");
   });
 });

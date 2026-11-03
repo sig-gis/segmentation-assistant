@@ -3,6 +3,7 @@ const LAYERS = [
   ["saved", "Saved outlines", "Outlines you have saved"],
   ["suggestions", "Suggestions", "Unreviewed outlines from Find similar and sweeps"],
   ["areas", "Labeled areas", "Rectangles marked on the Review tab"],
+  ["tiles", "Sweep tiles", "The tiles a sweep with the Sweep tab's settings would use"],
 ];
 
 export default function LayersPanel({ visibility, onChange, showLabels, onShowLabels,
@@ -11,7 +12,7 @@ export default function LayersPanel({ visibility, onChange, showLabels, onShowLa
     <section>
       {LAYERS.map(([key, text, help]) => (
         <label key={key} className="check" title={help}>
-          <input type="checkbox" checked={visibility[key]}
+          <input type="checkbox" checked={!!visibility[key]}
                  onChange={(e) => onChange({ ...visibility, [key]: e.target.checked })} />
           {text}
         </label>

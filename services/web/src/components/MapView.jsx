@@ -41,7 +41,7 @@ import "ol/ol.css";
 import { api } from "../api.js";
 import { holeAt, nearestVertex } from "../draft.js";
 import {
-  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, suggestionStyle,
+  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, suggestionStyle, tileStyle,
 } from "../styles.js";
 
 const format = new GeoJSON();
@@ -60,6 +60,7 @@ export default function MapView({
   suggestions = [],
   showLabels = true,
   areas = [],
+  tiles = [],
   draft = null,
   draftTool = "corners",
   highlight = {},
@@ -83,6 +84,7 @@ export default function MapView({
     saved: new VectorSource(),
     suggestions: new VectorSource(),
     areas: new VectorSource(),
+    tiles: new VectorSource(),
     draft: new VectorSource(),
     marks: new VectorSource(),
   });
@@ -98,6 +100,7 @@ export default function MapView({
   useEffect(() => {
     const s = sources.current;
     layers.current = {
+      tiles: new VectorLayer({ source: s.tiles, style: tileStyle, zIndex: 4, declutter: true }),
       areas: new VectorLayer({ source: s.areas, style: areaStyle, zIndex: 5 }),
       saved: new VectorLayer({ source: s.saved, zIndex: 10 }),
       suggestions: new VectorLayer({ source: s.suggestions, zIndex: 11 }),
@@ -212,6 +215,14 @@ export default function MapView({
                                    { label: a.label, status: a.status }))
     );
   }, [areas, frame]);
+
+  // sweep tiles: [{ geometry (API coordinates), size (label text) }]
+  useEffect(() => {
+    const source = sources.current.tiles;
+    source.clear();
+    if (!frame) return;
+    source.addFeatures(tiles.map((t) => featureFrom(frame.toMap(t.geometry), null, { size: t.size })));
+  }, [tiles, frame]);
 
   // the draft, its refinement clicks and its box
   useEffect(() => {

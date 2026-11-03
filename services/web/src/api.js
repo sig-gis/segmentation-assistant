@@ -47,6 +47,9 @@ export const api = {
   // delete every outline, area and complete mark on one image; the image stays
   resetImage: (id) => request(`/images/${id}/reset`, { method: "POST" }),
   displayUrl: (imageId) => `${BASE}/images/${imageId}/display`,
+  // the tiles a sweep would use; size/overlap default to the API settings
+  imageTiles: (imageId, size, overlap) =>
+    request(`/images/${imageId}/tiles`, { query: { size, overlap } }),
 
   annotationsGeojson: (imageId) =>
     request("/annotations/geojson", { query: { image_id: imageId, crs: "image" } }),

@@ -5,6 +5,7 @@ export const defaultVisibility = {
   saved: true,
   suggestions: false,
   areas: true,
+  tiles: false,
   hiddenLabels: [],
 };
 

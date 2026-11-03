@@ -14,9 +14,28 @@ export function pixelSizeText(image) {
   return `${Number(size.toFixed(digits))}${unit}`;
 }
 
-// How many tiles a sweep cuts the image into.
-export function tileCount(width, height, tileSize, overlap) {
-  if (!width || !height || !tileSize || overlap >= tileSize) return null;
-  const along = (length) => (length <= tileSize ? 1 : Math.ceil((length - overlap) / (tileSize - overlap)));
-  return along(width) * along(height);
+// Ground size of one pixel in metres, or null when the image is not in
+// metres (PNGs, degrees, feet).
+export function metresPerPixel(image) {
+  const size = image?.pixel_size;
+  if (!image?.crs || !size || !(image.proj4 ?? "").includes("+units=m")) return null;
+  return size;
+}
+
+const short = (n) => Number(n.toPrecision(4));
+
+// "10.08 km, 101.6 km²" for a width x height in pixels; pixels when the image
+// has no size in metres.
+export function sizeText(width, height, image) {
+  const m = metresPerPixel(image);
+  const sides = (unit, scale) =>
+    width === height ? `${short(width * scale)} ${unit}`
+      : `${short(width * scale)} × ${short(height * scale)} ${unit}`;
+  if (!m) {
+    return `${sides("px", 1)}, ${(width * height).toLocaleString("en-US")} px²`;
+  }
+  const length = Math.max(width, height) * m;
+  const area = width * height * m * m;
+  const side = length >= 1000 ? sides("km", m / 1000) : sides("m", m);
+  return `${side}, ${area >= 1e6 ? `${short(area / 1e6)} km²` : `${short(area)} m²`}`;
 }

@@ -3,6 +3,7 @@
 //   suggestions      dashed yellow (unreviewed model output)
 //   draft            the outline being edited: blue edges, white corner dots
 //   areas            dashed rectangles colored by review status
+//   tiles            dashed white on black (no outline state uses it), with size
 import MultiPoint from "ol/geom/MultiPoint.js";
 import Point from "ol/geom/Point.js";
 import Polygon from "ol/geom/Polygon.js";
@@ -125,6 +126,16 @@ export function pointStyle(feature) {
 export const BOX_STYLE = new Style({
   stroke: new Stroke({ color: "#2f7dff", width: 1.5, lineDash: [4, 4] }),
 });
+
+export function tileStyle(feature) {
+  return [
+    new Style({ stroke: new Stroke({ color: "#000", width: 3 }) }),
+    new Style({
+      stroke: new Stroke({ color: "#fff", width: 1.5, lineDash: [10, 6] }),
+      text: labelText(feature.get("size")),
+    }),
+  ];
+}
 
 export const AREA_COLORS = {
   draft: "#9aa4b2",

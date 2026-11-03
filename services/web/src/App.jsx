@@ -10,6 +10,7 @@ import {
 } from "./draft.js";
 import { combine } from "./shapes.js";
 import { imageFrame } from "./frame.js";
+import { sizeText } from "./imageInfo.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
 import { nextId, reviewQueue, sweepsIn } from "./review.js";
 import AreasPanel from "./components/AreasPanel.jsx";
@@ -103,6 +104,9 @@ export default function App() {
   });
   const [focus, setFocus] = useState(null);
   const [job, setJob] = useState(null);
+  // sweep tile settings (null until the API's defaults arrive) and their tiles
+  const [tiling, setTiling] = useState({ size: null, overlap: null });
+  const [tileGrid, setTileGrid] = useState(null);
 
   useEffect(() => store("visibility", visibility), [visibility]);
   useEffect(() => store("widths", widths), [widths]);
@@ -137,6 +141,27 @@ export default function App() {
     [annotations, filters, draft?.annotationId]
   );
   const sweeps = useMemo(() => sweepsIn(annotations), [annotations]);
+
+  // the tiles a sweep would use, refetched (after typing stops) when the
+  // image or tile settings change; invalid settings show no tiles
+  useEffect(() => {
+    if (!imageId) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api.imageTiles(imageId, tiling.size, tiling.overlap)
+        .then((grid) => {
+          if (cancelled) return;
+          setTileGrid(grid);
+          setTiling((t) => (t.size == null ? { size: grid.tile_size, overlap: grid.overlap } : t));
+        })
+        .catch(() => !cancelled && setTileGrid(null));
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [imageId, tiling.size, tiling.overlap]);
+  const tileFeatures = useMemo(() => (tileGrid?.tiles ?? []).map((t) => {
+    const [x0, y0, x1, y1] = t.pixel_box;
+    return { geometry: t.geometry, size: sizeText(x1 - x0, y1 - y0, image) };
+  }), [tileGrid, image]);
   const imageNames = useMemo(
     () => Object.fromEntries(images.map((i) => [i.image_id, basename(i.source_uri)])),
     [images]
@@ -782,6 +807,7 @@ export default function App() {
             suggestions={shownLayers.suggestions}
             showLabels={showLabels}
             areas={visibility.areas ? areas : []}
+            tiles={visibility.tiles ? tileFeatures : []}
             draft={draft}
             draftTool={draftTool}
             mode={mode}
@@ -856,6 +882,8 @@ export default function App() {
             )}
             {tab === "sweep" && (
               <SweepPanel image={image} label={label} modelReady={modelReady} job={job}
+                          tiling={tiling} onTiling={setTiling}
+                          tileCount={tileGrid?.tiles.length ?? 0}
                           onStart={startSweep} sweeps={sweeps} onReview={reviewSweep}
                           onBulk={bulkOutlines} />
             )}
