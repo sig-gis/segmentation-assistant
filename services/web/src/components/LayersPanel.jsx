@@ -17,8 +17,8 @@ export default function LayersPanel({ visibility, onChange, showLabels, onShowLa
           {text}
         </label>
       ))}
-      <label className="check nested" title="Every tile a sweep with these settings would use">
-        <input type="checkbox" checked={!!visibility.allTiles} disabled={!visibility.tiles}
+      <label className="check" title="Every tile a sweep with the Sweep tab's settings would use">
+        <input type="checkbox" checked={!!visibility.allTiles}
                onChange={(e) => onChange({ ...visibility, allTiles: e.target.checked })} />
         Show all tiles
       </label>

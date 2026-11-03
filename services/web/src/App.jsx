@@ -874,7 +874,7 @@ export default function App() {
             suggestions={shownLayers.suggestions}
             showLabels={showLabels}
             areas={visibility.areas ? areas : []}
-            tiles={visibility.tiles && visibility.allTiles ? tileFeatures : []}
+            tiles={visibility.allTiles ? tileFeatures : []}
             tileBox={visibility.tiles ? shownTile : null}
             onTileMove={setTileCenter}
             draft={draft}

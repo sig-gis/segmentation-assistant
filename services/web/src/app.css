@@ -138,7 +138,6 @@ ul.plain { list-style: none; margin: 0; padding: 0; }
 kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--kbd); color: var(--text); }
 .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .label-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
-.check.nested { margin-left: 22px; }
 .label-row .check { margin: 2px 0; }
 .checks .check { margin: 2px 0; }
 section + section { border-top: 1px solid var(--line); padding-top: 12px; }
