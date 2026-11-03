@@ -94,6 +94,8 @@ footer { grid-area: foot; padding: 4px 16px; font-size: 12px; color: var(--muted
 .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .box { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 12px; }
 .sweep-card { cursor: pointer; border-left-width: 4px; }
+.table-group { margin-bottom: 8px; }
+.table-group > summary { cursor: pointer; font-size: 13px; padding: 4px 0 4px 6px; border-left: 4px solid var(--line); }
 .sweep-card.selected { background: var(--selected); }
 .sweep-card input[type="color"] { width: 28px; height: 20px; padding: 0; border: none; background: none; }
 .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 12px; font-size: 12px; color: var(--muted); }

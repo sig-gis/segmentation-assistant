@@ -972,7 +972,8 @@ export default function App() {
                           onZoom={zoomArea} onAction={actOnArea} />
             )}
             {tab === "table" && (
-              <TablePanel annotations={annotations} selectedId={draft?.annotationId}
+              <TablePanel annotations={annotations} sweeps={sweeps} colorOf={sweepColorOf}
+                          selectedId={draft?.annotationId}
                           onShow={(id) => {
                             const status = annotations?.features.find((f) => f.id === id)?.properties.status;
                             openOutline(id, status === "proposed" ? "suggestion" : "saved");

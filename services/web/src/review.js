@@ -57,3 +57,22 @@ export function sweepCards(jobs, collection) {
   }
   return [...cards.values()];
 }
+
+// The outline table's sections: `reviewed` (accepted and rejected) and
+// `proposed`, grouped by sweep in `sweeps` order ({ jobId, label, features }),
+// then one group (jobId null) for proposals not from a listed sweep.
+export function tableSections(collection, sweeps) {
+  const features = collection?.features ?? [];
+  const proposed = features.filter((f) => f.properties.status === "proposed");
+  const listed = new Set(sweeps.map((s) => s.jobId));
+  const groups = sweeps
+    .map((s) => ({ jobId: s.jobId, label: s.label,
+                   features: proposed.filter((f) => f.properties.job_id === s.jobId) }))
+    .filter((g) => g.features.length);
+  const rest = proposed.filter((f) => !listed.has(f.properties.job_id));
+  if (rest.length) groups.push({ jobId: null, label: null, features: rest });
+  return {
+    reviewed: features.filter((f) => f.properties.status !== "proposed"),
+    proposed: groups,
+  };
+}
