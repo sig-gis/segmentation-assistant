@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextId, origin, reviewQueue, sweepCards, tableSections } from "./review.js";
+import { nextId, origin, reviewQueue, sweepCards, sweepsToShow, tableSections } from "./review.js";
 
 const feature = (id, props) => ({ id, properties: { status: "proposed", ...props } });
 const fc = {
@@ -96,5 +96,15 @@ describe("tableSections", () => {
   });
   it("has no groups when nothing is proposed", () => {
     expect(tableSections({ features: [] }, sweeps)).toEqual({ reviewed: [], proposed: [] });
+  });
+});
+
+describe("sweepsToShow", () => {
+  const card = (jobId, status, proposed) => ({ jobId, job: { status }, proposed });
+  it("keeps running sweeps and sweeps with outlines left to review", () => {
+    const cards = [card("queued", "queued", 0), card("running", "running", 0),
+                   card("open", "succeeded", 3), card("done", "succeeded", 0),
+                   card("failed", "failed", 0)];
+    expect(sweepsToShow(cards).map((c) => c.jobId)).toEqual(["queued", "running", "open"]);
   });
 });

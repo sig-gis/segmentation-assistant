@@ -13,7 +13,7 @@ import { imageFrame } from "./frame.js";
 import { sizeText } from "./imageInfo.js";
 import { tileBox } from "./tileBox.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
-import { nextId, reviewQueue, sweepCards } from "./review.js";
+import { nextId, reviewQueue, sweepCards, sweepsToShow } from "./review.js";
 import { sweepColor } from "./sweepColors.js";
 import AreasPanel from "./components/AreasPanel.jsx";
 import CompletePanel from "./components/CompletePanel.jsx";
@@ -956,7 +956,7 @@ export default function App() {
                           tiling={tiling} onTiling={setTiling}
                           tileCount={tileCount}
                           exampleId={exampleId}
-                          onStart={startSweep} sweeps={sweeps} onReview={reviewSweep}
+                          onStart={startSweep} sweeps={sweepsToShow(sweeps)} onReview={reviewSweep}
                           colorOf={sweepColorOf}
                           onColor={(jobId, color) => setSweepColors((c) => ({ ...c, [jobId]: color }))}
                           selectedSweep={selectedSweep} onSelectSweep={selectSweep}

@@ -76,3 +76,9 @@ export function tableSections(collection, sweeps) {
     proposed: groups,
   };
 }
+
+// The sweeps worth a card: still running, or with outlines left to review.
+// Finished sweeps drop off once everything they found is reviewed.
+export function sweepsToShow(cards) {
+  return cards.filter((c) => ["queued", "running"].includes(c.job.status) || c.proposed > 0);
+}

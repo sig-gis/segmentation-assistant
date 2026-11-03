@@ -175,9 +175,9 @@ export default function SweepPanel({
         )}
       </div>
 
-      <h2>Sweeps on this image</h2>
+      <h2>Sweeps to review</h2>
       {sweeps.length === 0 ? (
-        <p className="muted small">None yet.</p>
+        <p className="muted small">Nothing left to review from sweeps on this image.</p>
       ) : (
         <ul className="plain">
           {sweeps.map((s) => (
