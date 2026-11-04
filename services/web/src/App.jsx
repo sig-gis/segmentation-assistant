@@ -12,6 +12,7 @@ import { combine } from "./shapes.js";
 import { imageFrame } from "./frame.js";
 import { sizeText } from "./imageInfo.js";
 import { tileBox } from "./tileBox.js";
+import { limitUnit, limitsToApi, sizePreview } from "./sizeLimits.js";
 import { defaultVisibility, toggleLabel, visibleFeatures } from "./layers.js";
 import { nextId, reviewQueue, sweepCards, sweepsToShow } from "./review.js";
 import { sweepColor } from "./sweepColors.js";
@@ -110,6 +111,9 @@ export default function App() {
   const [jobs, setJobs] = useState([]);
   const [sweepColors, setSweepColors] = useState(() => stored("sweepColors", {}));
   const [selectedSweep, setSelectedSweep] = useState(null);
+  // smallest and largest object for sweeps and Find similar (side length in
+  // m, or px when the image has no metres)
+  const [sizeLimits, setSizeLimits] = useState({ min: "", max: "" });
   // sweep tile settings (null until the API's defaults arrive) and their tiles
   const [tiling, setTiling] = useState({ size: null, overlap: null });
   const [tileGrid, setTileGrid] = useState(null);
@@ -204,6 +208,12 @@ export default function App() {
     return { extent,
              label: sizeText(Math.round((x1 - x0) / pixel), Math.round((y1 - y0) / pixel), image) };
   }, [frame, image, tileCenter, tiling.size, imageExtent]);
+  // the size limits drawn at true scale while a tab that uses them is open
+  const shownSizes = useMemo(() => {
+    if (tab !== "sweep" && tab !== "suggestions") return [];
+    const pixel = frame?.georeferenced ? (image?.pixel_size ?? 1) : 1;
+    return sizePreview(sizeLimits, image, pixel);
+  }, [tab, frame, image, sizeLimits]);
   const tileFeatures = useMemo(() => (tileGrid?.tiles ?? []).map((t) => {
     const [x0, y0, x1, y1] = t.pixel_box;
     return { geometry: t.geometry, size: sizeText(x1 - x0, y1 - y0, image) };
@@ -613,6 +623,10 @@ export default function App() {
   }, [queue, suggestionId, run, refresh, showSuggestion]);
 
   const exampleId = draft?.kind === "saved" ? draft.annotationId : null;
+  const sizeArgs = useMemo(() => {
+    const { min_size: minSize, max_size: maxSize } = limitsToApi(sizeLimits, image);
+    return { minSize, maxSize };
+  }, [sizeLimits, image]);
   const findSimilar = useCallback(async ({ withExample, byName }) => {
     const result = await run("Looking for similar objects…", () => api.findSimilar({
       imageId,
@@ -621,16 +635,19 @@ export default function App() {
       cleanup: DEFAULT_CLEANUP,
       minScore: search.minScore,
       skipExisting: true,
+      ...sizeArgs,
     }));
     if (!result) return;
     await refresh();
     setFilters({ origin: "similar", minScore: 0, jobId: null });
     const repeats = result.skipped_existing
       ? ` ${result.skipped_existing} more matched outlines already on the image.` : "";
-    setMessage(`Found ${result.instances.length} new suggestion(s).${repeats}`);
+    const sized = result.outside_size
+      ? ` ${result.outside_size} were left out by the size limits.` : "";
+    setMessage(`Found ${result.instances.length} new suggestion(s).${repeats}${sized}`);
     const best = [...result.instances].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
     showSuggestion(best?.annotation_id ?? null);
-  }, [run, imageId, label, exampleId, search.minScore, refresh, showSuggestion]);
+  }, [run, imageId, label, exampleId, search.minScore, sizeArgs, refresh, showSuggestion]);
 
   // --- sweeps ---------------------------------------------------------------
 
@@ -663,13 +680,13 @@ export default function App() {
 
   const startSweep = useCallback(async ({ tileSize, overlap, exampleId }) => {
     const created = await run("Starting sweep…", () =>
-      api.startSweep({ imageId, text: label.trim(), tileSize, overlap, exampleId })
+      api.startSweep({ imageId, text: label.trim(), tileSize, overlap, exampleId, ...sizeArgs })
     );
     if (!created) return;
     store(`sweep:${imageId}`, created.job_id);
     setJob({ job_id: created.job_id, status: created.status });
     api.listJobs(imageId).then(setJobs).catch(report);
-  }, [run, imageId, label, report]);
+  }, [run, imageId, label, sizeArgs, report]);
 
   // click a sweep card: select its outlines (drawn bolder) and zoom to them;
   // click again to clear
@@ -876,6 +893,7 @@ export default function App() {
             areas={visibility.areas ? areas : []}
             tiles={visibility.allTiles ? tileFeatures : []}
             tileBox={visibility.tiles ? shownTile : null}
+            sizePreview={shownSizes}
             onTileMove={setTileCenter}
             draft={draft}
             draftTool={draftTool}
@@ -942,6 +960,7 @@ export default function App() {
               <SuggestionsPanel
                 label={label} exampleId={exampleId} search={search}
                 onSearch={setSearch} onFindSimilar={findSimilar} modelReady={modelReady}
+                sizeLimits={sizeLimits} onSizeLimits={setSizeLimits} sizeUnit={limitUnit(image)}
                 queue={queue} currentIndex={queue.indexOf(suggestionId)}
                 filters={filters} onFilters={setFilters} onStep={step}
                 onAccept={() => reviewSuggestion({ status: "accepted", label: label.trim() })}
@@ -956,6 +975,7 @@ export default function App() {
                           tiling={tiling} onTiling={setTiling}
                           tileCount={tileCount}
                           exampleId={exampleId}
+                          sizeLimits={sizeLimits} onSizeLimits={setSizeLimits}
                           onStart={startSweep} sweeps={sweepsToShow(sweeps)} onReview={reviewSweep}
                           colorOf={sweepColorOf}
                           onColor={(jobId, color) => setSweepColors((c) => ({ ...c, [jobId]: color }))}

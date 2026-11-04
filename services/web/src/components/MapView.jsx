@@ -26,6 +26,7 @@ import Feature from "ol/Feature.js";
 import Map from "ol/Map.js";
 import View from "ol/View.js";
 import GeoJSON from "ol/format/GeoJSON.js";
+import CircleGeometry from "ol/geom/Circle.js";
 import LineString from "ol/geom/LineString.js";
 import Point from "ol/geom/Point.js";
 import { fromExtent } from "ol/geom/Polygon.js";
@@ -45,8 +46,8 @@ import "ol/ol.css";
 import { api } from "../api.js";
 import { holeAt, nearestVertex } from "../draft.js";
 import {
-  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, suggestionStyle, tileBoxStyle,
-  tileStyle,
+  BOX_STYLE, areaStyle, draftStyles, pointStyle, savedStyle, sizePreviewStyle, suggestionStyle,
+  tileBoxStyle, tileStyle,
 } from "../styles.js";
 
 const format = new GeoJSON();
@@ -67,6 +68,7 @@ export default function MapView({
   areas = [],
   tiles = [],
   tileBox = null,
+  sizePreview = [],
   draft = null,
   draftTool = "corners",
   highlight = {},
@@ -95,6 +97,7 @@ export default function MapView({
     areas: new VectorSource(),
     tiles: new VectorSource(),
     tileBox: new VectorSource(),
+    sizePreview: new VectorSource(),
     draft: new VectorSource(),
     marks: new VectorSource(),
   });
@@ -113,6 +116,7 @@ export default function MapView({
       tiles: new VectorLayer({ source: s.tiles, style: tileStyle, zIndex: 4, declutter: true }),
       areas: new VectorLayer({ source: s.areas, style: areaStyle, zIndex: 5 }),
       tileBox: new VectorLayer({ source: s.tileBox, style: tileBoxStyle, zIndex: 9 }),
+      sizePreview: new VectorLayer({ source: s.sizePreview, style: sizePreviewStyle, zIndex: 25 }),
       saved: new VectorLayer({ source: s.saved, zIndex: 10 }),
       suggestions: new VectorLayer({ source: s.suggestions, zIndex: 11 }),
       draft: new VectorLayer({ source: s.draft, zIndex: 20 }),
@@ -256,6 +260,32 @@ export default function MapView({
     map.addInteraction(translate);
     return () => map.removeInteraction(translate);
   }, [tileBox, mode, draft, onTileMove]);
+
+  // size limits at true scale, at the centre of the view (kept there as the
+  // map moves): [{ kind, side, radius (map units), label }]
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = sources.current.sizePreview;
+    source.clear();
+    if (!map || !sizePreview.length) return;
+    const draw = () => {
+      const center = map.getView()?.getCenter();
+      source.clear();
+      if (!center) return;
+      const [cx, cy] = center;
+      source.addFeatures(sizePreview.flatMap(({ kind, side, radius, label }) => {
+        const half = side / 2;
+        return [
+          new Feature({ geometry: fromExtent([cx - half, cy - half, cx + half, cy + half]), kind }),
+          new Feature({ geometry: new CircleGeometry(center, radius), kind }),
+          new Feature({ geometry: new Point([cx, cy + half]), kind, part: "label", label }),
+        ];
+      }));
+    };
+    draw();
+    map.on("moveend", draw);
+    return () => map.un("moveend", draw);
+  }, [sizePreview, viewImageId]);
 
   // the draft, its refinement clicks and its box
   useEffect(() => {

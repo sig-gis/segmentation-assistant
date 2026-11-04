@@ -6,6 +6,8 @@
 //   areas            dashed rectangles colored by review status
 //   tiles            dashed white on black (no outline state uses it), with size
 //   tile box         solid white edge on black, size label
+//   size preview     size limits: a square and an equal-area circle each,
+//                    dashed for the smallest, solid for the largest
 import MultiPoint from "ol/geom/MultiPoint.js";
 import Point from "ol/geom/Point.js";
 import Polygon from "ol/geom/Polygon.js";
@@ -160,6 +162,20 @@ export function tileBoxStyle(feature) {
   return feature.get("part") === "edge"
     ? TILE_EDGE
     : new Style({ text: labelText(feature.get("text")) });
+}
+
+// parts: shapes ("square", "circle") and "label" (above its square)
+export function sizePreviewStyle(feature) {
+  if (feature.get("part") === "label") {
+    const text = labelText(feature.get("label"));
+    text.setOffsetY(-10);
+    return new Style({ text });
+  }
+  const dash = feature.get("kind") === "min" ? [5, 4] : undefined;
+  return [
+    new Style({ stroke: new Stroke({ color: "#000", width: 3.5, lineDash: dash }) }),
+    new Style({ stroke: new Stroke({ color: "#fff", width: 2, lineDash: dash }) }),
+  ];
 }
 
 export const AREA_COLORS = {

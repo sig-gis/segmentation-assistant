@@ -66,8 +66,9 @@ export const api = {
   // region [xmin, ymin, xmax, ymax] in image coordinates: search only there
   // minScore: lowest match score kept; skipExisting: leave out repeats of
   // outlines already on the image
+  // minSize / maxSize: smallest and largest area kept, in image pixels²
   findSimilar: ({ imageId, text, exampleIds = [], cleanup, region = null, minScore = null,
-                  skipExisting = false }) =>
+                  skipExisting = false, minSize = null, maxSize = null }) =>
     request("/segment/concept", {
       method: "POST",
       body: {
@@ -79,16 +80,20 @@ export const api = {
         coord_space: "image",
         min_score: minScore,
         skip_existing: skipExisting,
+        min_size: minSize,
+        max_size: maxSize,
       },
     }),
 
   // exampleId: a saved outline that guides the tile it is in
-  startSweep: ({ imageId, text, tileSize, overlap, exampleId = null }) =>
+  startSweep: ({ imageId, text, tileSize, overlap, exampleId = null, minSize = null,
+                 maxSize = null }) =>
     request("/segment/tiled", {
       method: "POST",
       body: {
         image_id: imageId, text, tile_size: tileSize, overlap,
         exemplars: exampleId ? [{ annotation_id: exampleId }] : [],
+        min_size: minSize, max_size: maxSize,
       },
     }),
   getJob: (jobId) => request(`/segment/jobs/${jobId}`),

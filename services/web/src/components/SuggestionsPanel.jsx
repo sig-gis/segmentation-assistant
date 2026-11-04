@@ -1,9 +1,10 @@
 // Suggestions: let SAM find objects like the current label or like a saved
 // outline, then go through them one at a time or all at once.
 import { ORIGINS } from "../review.js";
+import SizeLimitsInput from "./SizeLimitsInput.jsx";
 
 export default function SuggestionsPanel({
-  label, exampleId, search, onSearch, onFindSimilar, modelReady,
+  label, exampleId, search, onSearch, onFindSimilar, modelReady, sizeLimits, onSizeLimits, sizeUnit,
   queue, currentIndex, filters, onFilters, onStep, onAccept, onReject, onDelete, onEdit, onBulk,
 }) {
   const withExample = search.useExample && Boolean(exampleId);
@@ -39,6 +40,7 @@ export default function SuggestionsPanel({
           <input type="range" min="0.05" max="0.9" step="0.05" value={search.minScore}
                  onChange={(e) => onSearch({ ...search, minScore: Number(e.target.value) })} />
         </label>
+        <SizeLimitsInput limits={sizeLimits} onChange={onSizeLimits} unit={sizeUnit} />
         <button className="primary" onClick={() => onFindSimilar({ withExample, byName })}
                 disabled={!modelReady || !label.trim()}
                 title="Search the whole image. Outlines already on the image are not suggested again.">

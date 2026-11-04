@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 import { areaText, lengthText, metresPerPixel, pixelSizeText } from "../imageInfo.js";
+import { numberOrEmpty } from "../inputs.js";
+import { limitUnit } from "../sizeLimits.js";
+import SizeLimitsInput from "./SizeLimitsInput.jsx";
 
-// an emptied number box stays empty instead of turning into 0
-const numberOrEmpty = (value) => (value === "" ? "" : Number(value));
 
 // which of a sweep's outlines "Delete" removes
 const DELETE_WHICH = {
@@ -97,6 +98,8 @@ export default function SweepPanel({
   onTiling,
   tileCount,
   exampleId,
+  sizeLimits,
+  onSizeLimits,
   onStart,
   sweeps,
   colorOf,
@@ -159,6 +162,7 @@ export default function SweepPanel({
         ) : (
           <p className="muted small">Overlap must be smaller than the tile size (at least 64).</p>
         )}
+        <SizeLimitsInput limits={sizeLimits} onChange={onSizeLimits} unit={limitUnit(image)} />
         <button className="primary"
                 disabled={!modelReady || !label || running || !tileCount || tiling.size === "" || tiling.overlap === ""}
                 onClick={() => onStart({ tileSize: tiling.size, overlap: tiling.overlap,
