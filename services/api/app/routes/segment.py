@@ -97,6 +97,15 @@ async def _back_to_image(raw, image, crop, box):
     return as_multipolygon(clipped) if clipped else None
 
 
+def _within_size(geometry: dict, pixel: float, min_size, max_size) -> bool:
+    """Whether a geometry's area, in image pixels², is within the limits.
+    `pixel` is the width of one pixel in the geometry's units (1 for PNGs)."""
+    from shapely.geometry import shape
+
+    area = shape(geometry).area / (pixel * pixel)
+    return (min_size is None or area >= min_size) and (max_size is None or area <= max_size)
+
+
 def _coord_space_of(image) -> str:
     return "crs" if image.crs else "pixel"
 
@@ -330,7 +339,9 @@ async def segment_concept(
     clipped to it (422 if the region is invalid). `min_score` falls back to
     settings `concept.min_score`. With `skip_existing`, matches that overlap an
     outline already on the image (IoU 0.5 or more, any status) are left out and
-    counted in `skipped_existing`.
+    counted in `skipped_existing`. Matches outside `min_size` / `max_size`
+    (px², measured on the model's outline) are left out and counted in
+    `outside_size`.
 
     Exemplar annotations must exist (404) and be on this image with a geometry
     (422). The label is `text`, else the first positive exemplar annotation's
@@ -396,6 +407,8 @@ async def segment_concept(
     prompt["region"] = region
     prompt["crop"] = crop
     pixel = await asyncio.to_thread(image_pixel_size, image)
+    prompt["min_size"], prompt["max_size"] = body.min_size, body.max_size
+    outside_size = 0
 
     instances: list[ConceptInstance] = []
     for result in results:
@@ -404,6 +417,9 @@ async def segment_concept(
             raw = await _back_to_image(raw, image, crop, region)
             if raw is None:
                 continue  # found, but outside the region
+        if not _within_size(raw, pixel, body.min_size, body.max_size):
+            outside_size += 1
+            continue
         cleaned = clean_outline(raw, pixel, body.cleanup.fill_holes, body.cleanup.smoothing)
         if existing and any(polygon_iou(cleaned or raw, other) >= 0.5 for other in existing):
             skipped += 1
@@ -427,7 +443,9 @@ async def segment_concept(
                 score=result.score,
             )
         )
-    return ConceptSegmentResponse(instances=instances, skipped_existing=skipped)
+    return ConceptSegmentResponse(
+        instances=instances, skipped_existing=skipped, outside_size=outside_size
+    )
 
 
 @router.post("/tiled", response_model=JobCreatedResponse, status_code=202)
@@ -456,8 +474,8 @@ async def segment_tiled(body: TiledSegmentRequest, request: Request) -> JobCreat
             "overlap": overlap,
             "exemplars": [{"box": list(e.box), "positive": e.positive} for e in exemplars],
             # size limits (px²) the sweep applies, recorded so its card can show them
-            "min_size": tiling.get("min_size") or 0,
-            "max_size": tiling.get("max_size"),
+            "min_size": body.min_size if body.min_size is not None else tiling.get("min_size") or 0,
+            "max_size": body.max_size if body.max_size is not None else tiling.get("max_size"),
         },
     )
     await state.repo.create_job(job)

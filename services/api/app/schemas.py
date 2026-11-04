@@ -143,7 +143,21 @@ class ExemplarRef(BaseModel):
         return self
 
 
-class ConceptSegmentRequest(BaseModel):
+class SizeLimits(BaseModel):
+    """Smallest and largest object to keep, as areas in image pixels² (on a
+    10 m image, 100 px² is one hectare). Either can be left out."""
+
+    min_size: float | None = Field(default=None, ge=0, description="smallest area kept, px²")
+    max_size: float | None = Field(default=None, gt=0, description="largest area kept, px²")
+
+    @model_validator(mode="after")
+    def _min_not_above_max(self):
+        if self.min_size is not None and self.max_size is not None and self.min_size > self.max_size:
+            raise ValueError("min_size must not be larger than max_size")
+        return self
+
+
+class ConceptSegmentRequest(SizeLimits):
     """Text and/or exemplar prompt. Raw exemplar boxes and `region` are
     [xmin, ymin, xmax, ymax] in `coord_space`: pixel or image (the image CRS)."""
 
@@ -176,9 +190,10 @@ class ConceptSegmentRequest(BaseModel):
         return self
 
 
-class TiledSegmentRequest(BaseModel):
+class TiledSegmentRequest(SizeLimits):
     """A sweep for `text`, optionally guided by visual examples. Each example
-    is used in the tile that contains it; other tiles use the text alone."""
+    is used in the tile that contains it; other tiles use the text alone.
+    Size limits not given come from settings `tiling`."""
 
     image_id: UUID
     text: str
@@ -218,6 +233,7 @@ class ConceptInstance(BaseModel):
 class ConceptSegmentResponse(BaseModel):
     instances: list[ConceptInstance]
     skipped_existing: int = 0
+    outside_size: int = Field(default=0, description="matches left out by the size limits")
 
 
 class JobCreatedResponse(BaseModel):
