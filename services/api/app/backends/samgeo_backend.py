@@ -67,7 +67,7 @@ class SamGeoBackend(Backend):
         self._settings = settings
         self._sam = None
         self._lock = threading.Lock()
-        self._current_source: str | None = None
+        self._current_source: str | None = None # The currently loaded image
 
     # -- lifecycle ---------------------------------------------------------
 
