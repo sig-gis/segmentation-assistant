@@ -17,13 +17,14 @@ from typing import Any
 import yaml
 
 DEFAULT_SETTINGS: dict[str, Any] = {
+    # Fallback if no YAML exists
     "model": {
         "backend": "samgeo",
         "samgeo_backend": "meta",
         "model_id": "facebook/sam3",
         "adapter_ref": None,
     },
-    "tiling": {"tile_size": 1024, "overlap": 128, "min_size": 0, "max_size": None},
+    "tiling": {"tile_size": 1008, "overlap": 126, "min_size": 0, "max_size": None},
     "interactive": {"multimask_output": True},
     "concept": {"min_score": 0.0},
 }
